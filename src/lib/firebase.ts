@@ -17,6 +17,21 @@ import {
 import { TeacherProfile, PPCTCurriculum, ScheduleItem, ClassTimetableRule } from '../types';
 import { CustomWeekDatesMap } from '../utils/dateWeekUtils';
 
+declare global {
+  interface ImportMetaEnv {
+    VITE_FIREBASE_API_KEY?: string;
+    VITE_FIREBASE_AUTH_DOMAIN?: string;
+    VITE_FIREBASE_PROJECT_ID?: string;
+    VITE_FIREBASE_STORAGE_BUCKET?: string;
+    VITE_FIREBASE_MESSAGING_SENDER_ID?: string;
+    VITE_FIREBASE_APP_ID?: string;
+  }
+
+  interface ImportMeta {
+    readonly env: ImportMetaEnv;
+  }
+}
+
 // Safely load firebase config if present
 const configFiles = (import.meta as any).glob('../../firebase-applet-config.json', { eager: true });
 const configModule = Object.values(configFiles)[0] as any;
@@ -30,12 +45,12 @@ const firebaseConfigData = configModule?.default || configModule || {
 };
 
 const firebaseConfig = {
-  apiKey: (import.meta as any).env?.VITE_FIREBASE_API_KEY || firebaseConfigData.apiKey || "AIzaSyC1SHw71JjSNFK80nEaGbFj4MA6zPwsgCE",
-  authDomain: (import.meta as any).env?.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfigData.authDomain || "lichbaogiang-20939.firebaseapp.com",
-  projectId: (import.meta as any).env?.VITE_FIREBASE_PROJECT_ID || firebaseConfigData.projectId || "lichbaogiang-20939",
-  storageBucket: (import.meta as any).env?.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfigData.storageBucket || "lichbaogiang-20939.firebasestorage.app",
-  messagingSenderId: (import.meta as any).env?.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfigData.messagingSenderId || "481171704495",
-  appId: (import.meta as any).env?.VITE_FIREBASE_APP_ID || firebaseConfigData.appId || "1:481171704495:web:c7f969153f0337a7d9225a",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || firebaseConfigData.apiKey || "AIzaSyC1SHw71JjSNFK80nEaGbFj4MA6zPwsgCE",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfigData.authDomain || "lichbaogiang-20939.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || firebaseConfigData.projectId || "lichbaogiang-20939",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfigData.storageBucket || "lichbaogiang-20939.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfigData.messagingSenderId || "481171704495",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || firebaseConfigData.appId || "1:481171704495:web:c7f969153f0337a7d9225a",
 };
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();

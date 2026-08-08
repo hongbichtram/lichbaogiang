@@ -6,6 +6,7 @@ import { PPCTView } from './components/PPCTView';
 import { StatsView } from './components/StatsView';
 import { ExportView } from './components/ExportView';
 import { SettingsView } from './components/SettingsView';
+import { TimetableView } from './components/TimetableView';
 import { Footer } from './components/Footer';
 import { RescheduleModal } from './components/RescheduleModal';
 import { LessonDrawer } from './components/LessonDrawer';
@@ -437,7 +438,9 @@ export default function App() {
 
   // PPCT Handlers
   const handleSaveCurriculum = (updatedCurriculum: PPCTCurriculum) => {
-    const existingIdx = curriculums.findIndex(c => c.id === updatedCurriculum.id);
+    const existingIdx = curriculums.findIndex(
+      c => c.id === updatedCurriculum.id || (c.grade === updatedCurriculum.grade && c.subject === updatedCurriculum.subject)
+    );
     let updated: PPCTCurriculum[];
     if (existingIdx >= 0) {
       updated = [...curriculums];
@@ -594,6 +597,16 @@ export default function App() {
             onSaveCurriculum={handleSaveCurriculum}
             onSyncToSchedule={handleSyncPPCTToSchedule}
             onDeleteCurriculum={handleDeleteCurriculum}
+          />
+        )}
+
+        {currentTab === 'timetable' && (
+          <TimetableView
+            teacher={teacher}
+            timetableRules={timetableRules}
+            onSaveProfile={handleSaveProfile}
+            onSaveTimetableRules={handleSaveTimetableRules}
+            onAutoGenerateSchedule={handleAutoGenerateSchedule}
           />
         )}
 

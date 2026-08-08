@@ -142,7 +142,7 @@ export const LessonDrawer: React.FC<LessonDrawerProps> = ({
                 </h2>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
-                {formData.dayOfWeek} – {dateStr} • {getFullPeriodLabel(formData.period || 1)}
+                {formData.dayOfWeek} – {dateStr} • {getFullPeriodLabel(formData.period || 1, formData.session)}
               </p>
             </div>
 

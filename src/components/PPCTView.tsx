@@ -19,7 +19,7 @@ import {
   X
 } from 'lucide-react';
 import { PPCTCurriculum, PPCTItem, ScheduleItem, TeacherProfile } from '../types';
-import { PREDEFINED_PPCTS, getPredefinedPPCT } from '../data/primaryCurriculums';
+import { PREDEFINED_PPCTS, getPredefinedPPCT, PRIMARY_SUBJECTS } from '../data/primaryCurriculums';
 import { downloadPPCTTemplate, exportPPCTToExcel } from '../utils/ppctExcelUtils';
 import { PpctExcelImportModal } from './PpctExcelImportModal';
 
@@ -52,12 +52,55 @@ export const PPCTView: React.FC<PPCTViewProps> = ({
 
   // Find existing loaded curriculum or get predefined match
   const currentCurriculum = curriculums.find(
-    c => c.grade === selectedGrade && c.subject === selectedSubject
+    c => c.grade === selectedGrade && (c.subject || 'Tin học') === selectedSubject
   );
 
   const [items, setItems] = useState<PPCTItem[]>(
     currentCurriculum?.items || getPredefinedPPCT(selectedGrade, selectedSubject, selectedTextbook)?.items || []
   );
+
+  const handleGradeChange = (newGrade: string) => {
+    setSelectedGrade(newGrade);
+    const saved = curriculums.find(c => c.grade === newGrade && (c.subject || 'Tin học') === selectedSubject);
+    if (saved) {
+      setItems(saved.items || []);
+    } else {
+      const predefined = getPredefinedPPCT(newGrade, selectedSubject, selectedTextbook);
+      setItems(predefined ? [...predefined.items] : []);
+    }
+  };
+
+  const handleSubjectChange = (newSubject: string) => {
+    setSelectedSubject(newSubject);
+    const saved = curriculums.find(c => c.grade === selectedGrade && (c.subject || 'Tin học') === newSubject);
+    if (saved) {
+      setItems(saved.items || []);
+    } else {
+      const predefined = getPredefinedPPCT(selectedGrade, newSubject, selectedTextbook);
+      setItems(predefined ? [...predefined.items] : []);
+    }
+  };
+
+  const handleSaveCurrentPPCT = () => {
+    const currId = `ppct-${selectedGrade}-${selectedSubject}`.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    const curr: PPCTCurriculum = {
+      id: currId,
+      teacherId: teacher.uid,
+      grade: selectedGrade,
+      subject: selectedSubject,
+      textbook: selectedTextbook || '',
+      academicYear: teacher.academicYear || '2024 - 2025',
+      semester: teacher.semester || 'Học kỳ I',
+      items: items,
+      updatedAt: new Date().toISOString(),
+    };
+    onSaveCurriculum(curr);
+    setToastMessage({
+      type: 'success',
+      text: `✅ Đã lưu PPCT ${selectedSubject} ${selectedGrade} (${items.length} tiết) thành công!`
+    });
+    setTimeout(() => setToastMessage(null), 3000);
+  };
 
   // Handle Delete Confirmation Execution
   const handleConfirmDelete = () => {
@@ -251,16 +294,7 @@ export const PPCTView: React.FC<PPCTViewProps> = ({
             </label>
             <select
               value={selectedGrade}
-              onChange={(e) => {
-                setSelectedGrade(e.target.value);
-                const saved = curriculums.find(c => c.grade === e.target.value && c.subject === selectedSubject);
-                if (saved) {
-                  setItems(saved.items);
-                } else {
-                  const p = getPredefinedPPCT(e.target.value, selectedSubject, '');
-                  if (p) setItems([...p.items]);
-                }
-              }}
+              onChange={(e) => handleGradeChange(e.target.value)}
               className="w-full p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-white"
             >
               {['Khối 1', 'Khối 2', 'Khối 3', 'Khối 4', 'Khối 5'].map(g => (
@@ -275,19 +309,10 @@ export const PPCTView: React.FC<PPCTViewProps> = ({
             </label>
             <select
               value={selectedSubject}
-              onChange={(e) => {
-                setSelectedSubject(e.target.value);
-                const saved = curriculums.find(c => c.grade === selectedGrade && c.subject === e.target.value);
-                if (saved) {
-                  setItems(saved.items);
-                } else {
-                  const p = getPredefinedPPCT(selectedGrade, e.target.value, '');
-                  if (p) setItems([...p.items]);
-                }
-              }}
+              onChange={(e) => handleSubjectChange(e.target.value)}
               className="w-full p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-white"
             >
-              {['Tin học', 'Toán', 'Tiếng Việt', 'Công nghệ', 'Đạo đức', 'Tự nhiên và Xã hội'].map(s => (
+              {PRIMARY_SUBJECTS.map(s => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
@@ -454,6 +479,13 @@ export const PPCTView: React.FC<PPCTViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2 self-end sm:self-auto">
+            <button
+              onClick={handleSaveCurrentPPCT}
+              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-colors shadow-xs"
+            >
+              <Save className="w-4 h-4" />
+              <span>Lưu PPCT</span>
+            </button>
             <button
               onClick={handleAddItem}
               className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition-colors"

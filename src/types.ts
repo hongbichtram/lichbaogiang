@@ -49,6 +49,7 @@ export interface ScheduleItem {
   semester: string;
   weekNumber: number;
   dayOfWeek: 'Thứ 2' | 'Thứ 3' | 'Thứ 4' | 'Thứ 5' | 'Thứ 6';
+  session?: 'Sáng' | 'Chiều';
   period: number; // 1..5 sáng, 6..10 chiều
   className: string; // e.g. "4A1"
   subject: string;
@@ -76,6 +77,7 @@ export interface ClassTimetableRule {
   grade: string;
   subject: string;
   dayOfWeek: 'Thứ 2' | 'Thứ 3' | 'Thứ 4' | 'Thứ 5' | 'Thứ 6';
+  session?: 'Sáng' | 'Chiều';
   period: number; // 1..10
 }
 

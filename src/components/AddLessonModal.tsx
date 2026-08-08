@@ -137,14 +137,13 @@ export const AddLessonModal: React.FC<AddLessonModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Compute calculated period index (1..4 for Morning, 5..7 for Afternoon)
-  const calculatedPeriod = session === 'sáng' ? subPeriod : subPeriod + 4;
-
   // Check duplicate period
+  const targetSession = session === 'sáng' ? 'Sáng' : 'Chiều';
   const isDuplicatePeriod = schedules.some(
     s => s.weekNumber === currentWeek &&
          s.dayOfWeek === dayOfWeek &&
-         s.period === calculatedPeriod &&
+         (s.session === targetSession || (!s.session && ((s.period <= 4 && targetSession === 'Sáng') || (s.period > 4 && targetSession === 'Chiều')))) &&
+         (s.period === subPeriod || (s.period === (targetSession === 'Sáng' ? subPeriod : subPeriod + 4))) &&
          s.className === selectedClass
   );
 
@@ -178,7 +177,8 @@ export const AddLessonModal: React.FC<AddLessonModalProps> = ({
       semester: teacher.semester || 'Học kỳ I',
       weekNumber: currentWeek,
       dayOfWeek: dayOfWeek,
-      period: calculatedPeriod,
+      session: session === 'sáng' ? 'Sáng' : 'Chiều',
+      period: subPeriod,
       className: selectedClass,
       subject: currentSubject,
       grade: currentGrade,

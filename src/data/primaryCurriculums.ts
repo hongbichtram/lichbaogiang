@@ -1,5 +1,21 @@
 import { PPCTItem } from '../types';
 
+export const PRIMARY_SUBJECTS = [
+  'Tiếng Việt',
+  'Toán',
+  'Đạo đức',
+  'Tự nhiên và Xã hội',
+  'Khoa học',
+  'Lịch sử và Địa lí',
+  'Tin học',
+  'Công nghệ',
+  'Ngoại ngữ (Tiếng Anh)',
+  'Âm nhạc',
+  'Mĩ thuật',
+  'Giáo dục thể chất',
+  'Hoạt động trải nghiệm',
+];
+
 export interface PredefinedPPCT {
   grade: string;
   subject: string;

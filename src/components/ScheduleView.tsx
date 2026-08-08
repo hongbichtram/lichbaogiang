@@ -24,7 +24,7 @@ import { DatePickerModal } from './DatePickerModal';
 import { EditWeekDateModal } from './EditWeekDateModal';
 import { getWeekRangeFormatted, loadCustomWeekDatesMap } from '../utils/dateWeekUtils';
 import { getWeekDayDate } from '../utils/exportUtils';
-import { formatTableSessionPeriod } from '../utils/classUtils';
+import { formatTableSessionPeriod, getNormalizedSession, getNormalizedPeriod } from '../utils/classUtils';
 
 interface ScheduleViewProps {
   teacher?: TeacherProfile;
@@ -381,7 +381,12 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
                 const dateStr = getWeekDayDate(currentWeek, day, teacher?.academicYear || '2025-2026');
                 const dayItems = filteredSchedules
                   .filter(s => s.dayOfWeek === day)
-                  .sort((a, b) => a.period - b.period);
+                  .sort((a, b) => {
+                    const sessA = getNormalizedSession(a);
+                    const sessB = getNormalizedSession(b);
+                    if (sessA !== sessB) return sessA === 'Sáng' ? -1 : 1;
+                    return getNormalizedPeriod(a) - getNormalizedPeriod(b);
+                  });
 
                 // If no items for this day
                 if (dayItems.length === 0) {
@@ -443,7 +448,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
 
                       {/* Column 2: Buổi – Tiết */}
                       <td className="px-4 py-3.5 text-center border-r border-slate-200/80 dark:border-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200">
-                        {formatTableSessionPeriod(item.period)}
+                        {formatTableSessionPeriod(item.period, item.session)}
                       </td>
 
                       {/* Column 3: Lớp */}

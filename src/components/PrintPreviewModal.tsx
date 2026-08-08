@@ -2,6 +2,7 @@ import React from 'react';
 import { X, Printer, FileText, FileSpreadsheet, Download } from 'lucide-react';
 import { ScheduleItem, TeacherProfile } from '../types';
 import { exportWeeklyWordDoc, exportWeeklyExcel, groupSchedulesByDay } from '../utils/exportUtils';
+import { formatTableSessionPeriod } from '../utils/classUtils';
 
 interface PrintPreviewModalProps {
   isOpen: boolean;
@@ -171,7 +172,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                               <div className="text-[11pt] font-normal text-slate-600 mt-0.5">{group.dateStr}</div>
                             </td>
                           )}
-                          <td className="border border-slate-400 px-2 py-2 text-center align-middle">Tiết {item.period}</td>
+                          <td className="border border-slate-400 px-2 py-2 text-center align-middle">{formatTableSessionPeriod(item.period, item.session)}</td>
                           <td className="border border-slate-400 px-2 py-2 text-center align-middle font-bold">{item.className}</td>
                           <td className="border border-slate-400 px-2 py-2 text-center align-middle">{item.ppctPeriod || '-'}</td>
                           <td className="border border-slate-400 px-2.5 py-2 align-middle font-medium">{item.lessonTitle || 'Chưa cập nhật'}</td>

@@ -9,7 +9,7 @@ import {
   School 
 } from 'lucide-react';
 import { ClassTimetableRule } from '../types';
-import { getFullPeriodLabel } from '../utils/classUtils';
+import { getFullPeriodLabel, getNormalizedSession, getNormalizedPeriod } from '../utils/classUtils';
 
 interface ClassSelectDropdownProps {
   value: string; // Current selected class name, e.g. "4A1"
@@ -19,6 +19,7 @@ interface ClassSelectDropdownProps {
   onQuickAddClass?: (newClassName: string) => void;
   placeholder?: string;
   dayOfWeek?: 'Thứ 2' | 'Thứ 3' | 'Thứ 4' | 'Thứ 5' | 'Thứ 6';
+  session?: 'Sáng' | 'Chiều';
   period?: number;
   existingRules?: ClassTimetableRule[];
   currentRuleId?: string;
@@ -33,6 +34,7 @@ export const ClassSelectDropdown: React.FC<ClassSelectDropdownProps> = ({
   onQuickAddClass,
   placeholder = 'Chọn lớp',
   dayOfWeek,
+  session,
   period,
   existingRules = [],
   currentRuleId,
@@ -80,17 +82,21 @@ export const ClassSelectDropdown: React.FC<ClassSelectDropdownProps> = ({
 
   // Handle class selection & conflict checking
   const handleAttemptSelect = (className: string) => {
-    // Check if class is already scheduled in existingRules
+    // Check if class is already scheduled in existingRules for the EXACT same slot
     if (dayOfWeek && period && existingRules.length > 0) {
+      const normSession = session || 'Sáng';
       const conflict = existingRules.find(r => 
         r.id !== currentRuleId &&
-        r.className === className
+        r.className === className &&
+        r.dayOfWeek === dayOfWeek &&
+        getNormalizedSession(r) === normSession &&
+        getNormalizedPeriod(r) === period
       );
 
       if (conflict) {
         setConflictWarning({
           pendingClass: className,
-          conflictingSlot: `${conflict.dayOfWeek} – ${getFullPeriodLabel(conflict.period)}`,
+          conflictingSlot: `${conflict.dayOfWeek} – ${getFullPeriodLabel(conflict.period, conflict.session)}`,
         });
         setIsOpen(false);
         return;
@@ -131,11 +137,11 @@ export const ClassSelectDropdown: React.FC<ClassSelectDropdownProps> = ({
         className={`w-full flex items-center justify-between rounded-xl border font-bold transition-all ${
           compact
             ? value
-              ? 'px-2 py-1.5 text-xs bg-blue-50 dark:bg-blue-950/60 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 shadow-2xs hover:bg-blue-100'
-              : 'px-2 py-1.5 text-xs bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700/80 text-slate-400 dark:text-slate-500 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+              ? 'px-2 py-1.5 text-xs sm:text-sm bg-blue-50 dark:bg-blue-950/60 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 shadow-2xs hover:bg-blue-100'
+              : 'px-2 py-1.5 text-xs sm:text-sm bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700/80 text-slate-400 dark:text-slate-500 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-slate-100 dark:hover:bg-slate-800'
             : value
-              ? 'p-2.5 text-xs bg-blue-50/80 dark:bg-blue-950/50 border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-200 shadow-2xs hover:bg-blue-100/80'
-              : 'p-2.5 text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-slate-400'
+              ? 'p-2.5 text-xs sm:text-sm bg-blue-50/80 dark:bg-blue-950/50 border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-200 shadow-2xs hover:bg-blue-100/80'
+              : 'p-2.5 text-xs sm:text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-slate-400'
         }`}
       >
         <span className="truncate flex items-center gap-1">

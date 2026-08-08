@@ -14,6 +14,7 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { PPCTCurriculum, PPCTItem, TeacherProfile } from '../types';
+import { PRIMARY_SUBJECTS } from '../data/primaryCurriculums';
 import { 
   downloadPPCTTemplate, 
   parseAndValidatePPCTExcel, 
@@ -285,7 +286,7 @@ export const PpctExcelImportModal: React.FC<PpctExcelImportModalProps> = ({
                     }}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-900 dark:text-white"
                   >
-                    {['Tin học', 'Toán', 'Tiếng Việt', 'Công nghệ', 'Đạo đức', 'Tự nhiên và Xã hội'].map(s => (
+                    {PRIMARY_SUBJECTS.map(s => (
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>

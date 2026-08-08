@@ -1,6 +1,7 @@
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, AlignmentType, WidthType, BorderStyle, VerticalMergeType, VerticalAlign } from 'docx';
 import * as XLSX from 'xlsx';
 import { ScheduleItem, TeacherProfile } from '../types';
+import { formatTableSessionPeriod, getNormalizedSession, getNormalizedPeriod } from './classUtils';
 
 export const getDayDisplayName = (day: string): string => {
   switch (day) {
@@ -49,7 +50,12 @@ export const groupSchedulesByDay = (
   DAYS_ORDER.forEach(dayKey => {
     const items = groupsMap.get(dayKey);
     if (items && items.length > 0) {
-      items.sort((a, b) => a.period - b.period);
+      items.sort((a, b) => {
+        const sessA = getNormalizedSession(a);
+        const sessB = getNormalizedSession(b);
+        if (sessA !== sessB) return sessA === 'Sáng' ? -1 : 1;
+        return getNormalizedPeriod(a) - getNormalizedPeriod(b);
+      });
       result.push({
         dayOfWeek: dayKey,
         dayDisplayName: getDayDisplayName(dayKey),
@@ -61,7 +67,12 @@ export const groupSchedulesByDay = (
 
   groupsMap.forEach((items, dayKey) => {
     if (!DAYS_ORDER.includes(dayKey) && items.length > 0) {
-      items.sort((a, b) => a.period - b.period);
+      items.sort((a, b) => {
+        const sessA = getNormalizedSession(a);
+        const sessB = getNormalizedSession(b);
+        if (sessA !== sessB) return sessA === 'Sáng' ? -1 : 1;
+        return getNormalizedPeriod(a) - getNormalizedPeriod(b);
+      });
       result.push({
         dayOfWeek: dayKey,
         dayDisplayName: getDayDisplayName(dayKey),
@@ -140,7 +151,7 @@ export const exportWeeklyWordDoc = async (
             new TableCell({
               width: { size: 8, type: WidthType.PERCENTAGE },
               verticalAlign: VerticalAlign.CENTER,
-              children: [new Paragraph({ text: `Tiết ${item.period}`, alignment: AlignmentType.CENTER })],
+              children: [new Paragraph({ text: formatTableSessionPeriod(item.period, item.session), alignment: AlignmentType.CENTER })],
             }),
             new TableCell({
               width: { size: 8, type: WidthType.PERCENTAGE },
@@ -274,7 +285,7 @@ export const exportWeeklyExcel = (
     group.items.forEach((item, itemIdx) => {
       data.push([
         itemIdx === 0 ? `${group.dayDisplayName}\n${group.dateStr}` : '',
-        `Tiết ${item.period}`,
+        formatTableSessionPeriod(item.period, item.session),
         item.className,
         item.ppctPeriod ? item.ppctPeriod.toString() : '-',
         item.lessonTitle || '',

@@ -9,12 +9,11 @@ import {
   User, 
   LogOut, 
   LayoutDashboard,
-  Database,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Clock
 } from 'lucide-react';
 import { TeacherProfile } from '../types';
-import { testFirestoreWrite } from '../lib/firebase';
 
 interface NavbarProps {
   currentTab: string;
@@ -39,8 +38,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLogin,
   onLogout,
 }) => {
-  const [testingFirestore, setTestingFirestore] = useState(false);
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginErrorModal, setLoginErrorModal] = useState<{ code: string; message: string; hint: string } | null>(null);
 
@@ -72,21 +69,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   };
 
-  const handleTestFirestore = async () => {
-    setTestingFirestore(true);
-    setTestResult(null);
-    try {
-      const res = await testFirestoreWrite();
-      setTestResult(res);
-    } catch (err: any) {
-      setTestResult({
-        success: false,
-        message: `Lỗi ngoài dự kiến: ${err?.message || String(err)}`
-      });
-    } finally {
-      setTestingFirestore(false);
-    }
-  };
   return (
     <header className="sticky top-0 z-40 w-full backdrop-blur-2xl bg-slate-950/85 border-b border-indigo-500/20 shadow-lg shadow-indigo-950/30 text-white transition-all">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
@@ -116,6 +98,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               { id: 'dashboard', label: 'Tổng quan', icon: LayoutDashboard },
               { id: 'schedule', label: 'Lịch báo giảng', icon: Calendar },
               { id: 'ppct', label: 'Phân phối CT', icon: BookOpen },
+              { id: 'timetable', label: 'Thời khóa biểu', icon: Clock },
               { id: 'settings', label: 'Cài đặt', icon: SettingsIcon },
             ].map((item) => {
               const Icon = item.icon;
@@ -145,21 +128,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Actions Right */}
           <div className="flex items-center space-x-2.5">
             
-            {/* KIỂM TRA FIRESTORE Test Button */}
-            <button
-              onClick={handleTestFirestore}
-              disabled={testingFirestore}
-              className="flex items-center space-x-1.5 px-3 py-1.5 bg-cyan-600/30 hover:bg-cyan-600/50 text-cyan-200 hover:text-white rounded-xl border border-cyan-400/40 text-xs font-bold transition-all shadow-xs disabled:opacity-50"
-              title="Kiểm tra kết nối và ghi dữ liệu thực tế lên Cloud Firestore"
-            >
-              {testingFirestore ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-300" />
-              ) : (
-                <Database className="w-3.5 h-3.5 text-cyan-400" />
-              )}
-              <span className="hidden sm:inline">KIỂM TRA FIRESTORE</span>
-            </button>
-
             {/* Auto Save Status Badge */}
             <div className="hidden lg:flex items-center space-x-1.5 text-xs text-slate-200 px-3 py-1.5 bg-slate-900/90 rounded-full border border-indigo-500/30 shadow-xs">
               <CheckCircle2 className={`w-3.5 h-3.5 ${autoSaveStatus === 'saving' ? 'animate-spin text-amber-400' : 'text-emerald-400'}`} />
@@ -228,6 +196,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           { id: 'dashboard', label: 'Tổng quan', icon: LayoutDashboard },
           { id: 'schedule', label: 'Lịch báo giảng', icon: Calendar },
           { id: 'ppct', label: 'Phân phối CT', icon: BookOpen },
+          { id: 'timetable', label: 'Thời khóa biểu', icon: Clock },
           { id: 'settings', label: 'Cài đặt', icon: SettingsIcon },
         ].map((item) => {
           const Icon = item.icon;
@@ -248,40 +217,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           );
         })}
       </div>
-      {/* Firestore Test Result Modal */}
-      {testResult && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-          <div className="w-full max-w-lg p-6 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl text-white space-y-4">
-            <div className="flex items-center space-x-3">
-              {testResult.success ? (
-                <div className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/40">
-                  <CheckCircle2 className="w-6 h-6" />
-                </div>
-              ) : (
-                <div className="p-2.5 bg-rose-500/20 text-rose-400 rounded-xl border border-rose-500/40">
-                  <AlertCircle className="w-6 h-6" />
-                </div>
-              )}
-              <h3 className="text-lg font-bold">
-                {testResult.success ? 'KẾT QUẢ GHI FIRESTORE THÀNH CÔNG' : 'KẾT QUẢ GHI FIRESTORE THẤT BẠI'}
-              </h3>
-            </div>
-
-            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-slate-200 whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto">
-              {testResult.message}
-            </div>
-
-            <div className="flex justify-end">
-              <button
-                onClick={() => setTestResult(null)}
-                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition-all shadow-md"
-              >
-                Đóng
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Google Login Error Modal */}
       {loginErrorModal && (

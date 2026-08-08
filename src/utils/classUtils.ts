@@ -1,5 +1,5 @@
 /**
- * Utility functions for class management and grade inference
+ * Utility functions for class management, session & period normalization
  */
 
 /**
@@ -29,39 +29,71 @@ export function normalizeClassName(className: string): string {
 }
 
 /**
- * Formats period number for display.
- * Morning: periods 1..4 -> "Tiết 1", "Tiết 2", "Tiết 3", "Tiết 4"
- * Afternoon: periods 5..7 -> "Tiết 1", "Tiết 2", "Tiết 3"
+ * Returns normalized session: "Sáng" or "Chiều"
+ * Sáng: 4 periods (1, 2, 3, 4)
+ * Chiều: 3 periods (1, 2, 3)
  */
-export function getPeriodName(period: number): string {
-  if (period <= 4) {
-    return `Tiết ${period}`;
+export function getNormalizedSession(item: { session?: string; period?: number }): 'Sáng' | 'Chiều' {
+  if (item.session === 'Sáng' || item.session === 'sáng') return 'Sáng';
+  if (item.session === 'Chiều' || item.session === 'chiều') return 'Chiều';
+  // Fallback for legacy items without explicit session
+  if (item.period && item.period > 4) return 'Chiều';
+  return 'Sáng';
+}
+
+/**
+ * Returns normalized period number for given session or legacy period index.
+ * Sáng: 1, 2, 3, 4
+ * Chiều: 1, 2, 3
+ */
+export function getNormalizedPeriod(item: { session?: string; period?: number }): number {
+  const p = item.period || 1;
+  const s = getNormalizedSession(item);
+
+  if (s === 'Chiều') {
+    if (p > 4) return Math.min(3, Math.max(1, p - 4));
+    return Math.min(3, Math.max(1, p));
   }
-  const afternoonPeriod = period > 4 ? period - 4 : period;
-  return `Tiết ${afternoonPeriod}`;
+  // Sáng
+  if (p > 4) return Math.min(4, Math.max(1, p - 4));
+  return Math.min(4, Math.max(1, p));
+}
+
+/**
+ * Formats period name for display, e.g. "Tiết 1", "Tiết 2"
+ */
+export function getPeriodName(period: number, session?: string): string {
+  const normP = getNormalizedPeriod({ session, period });
+  return `Tiết ${normP}`;
 }
 
 /**
  * Returns session label for period.
  */
-export function getSessionName(period: number): '☀️ BUỔI SÁNG' | '🌤️ BUỔI CHIỀU' {
-  return period <= 4 ? '☀️ BUỔI SÁNG' : '🌤️ BUỔI CHIỀU';
+export function getSessionName(period: number, session?: string): '☀️ BUỔI SÁNG' | '🌤️ BUỔI CHIỀU' {
+  const normS = getNormalizedSession({ session, period });
+  return normS === 'Sáng' ? '☀️ BUỔI SÁNG' : '🌤️ BUỔI CHIỀU';
 }
 
 /**
  * Full description format, e.g. "Sáng - Tiết 1" or "Chiều - Tiết 2"
  */
-export function getFullPeriodLabel(period: number): string {
-  if (period <= 4) {
-    return `Sáng - Tiết ${period}`;
-  }
-  return `Chiều - Tiết ${period - 4}`;
+export function getFullPeriodLabel(period: number, session?: string): string {
+  const normS = getNormalizedSession({ session, period });
+  const normP = getNormalizedPeriod({ session, period });
+  return `${normS} - Tiết ${normP}`;
 }
 
-export function formatTableSessionPeriod(period: number): string {
-  if (period <= 4) {
-    return `☀️ Sáng – Tiết ${period}`;
+/**
+ * Table format for session and period e.g. "☀️ Sáng – Tiết 1" or "🌤️ Chiều – Tiết 2"
+ */
+export function formatTableSessionPeriod(period: number, session?: string): string {
+  const normS = getNormalizedSession({ session, period });
+  const normP = getNormalizedPeriod({ session, period });
+  if (normS === 'Sáng') {
+    return `☀️ Sáng – Tiết ${normP}`;
   }
-  return `🌤️ Chiều – Tiết ${period - 4}`;
+  return `🌤️ Chiều – Tiết ${normP}`;
 }
+
 
