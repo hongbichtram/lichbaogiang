@@ -1,0 +1,73 @@
+{
+  "entities": {
+    "teachers": {
+      "title": "Teacher Profiles",
+      "description": "User profile information for primary school teachers",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "fullName": { "type": "string", "description": "Teacher full name" },
+        "schoolName": { "type": "string", "description": "School name" },
+        "teacherCode": { "type": "string", "description": "Teacher code/ID" },
+        "subjects": { "type": "array", "items": { "type": "string" }, "description": "Subjects taught" },
+        "grades": { "type": "array", "items": { "type": "string" }, "description": "Grades assigned (e.g. Khối 3, Khối 4)" },
+        "academicYear": { "type": "string", "description": "Current academic year e.g. 2025-2026" },
+        "semester": { "type": "string", "description": "Current semester e.g. Học kỳ I" },
+        "updatedAt": { "type": "string", "description": "ISO timestamp" }
+      },
+      "required": ["uid", "fullName", "academicYear"]
+    },
+    "curriculums": {
+      "title": "PPCT Curriculums",
+      "description": "Phân phối chương trình for subjects and textbooks",
+      "properties": {
+        "teacherId": { "type": "string", "description": "Teacher UID" },
+        "grade": { "type": "string", "description": "Grade e.g. Khối 4" },
+        "subject": { "type": "string", "description": "Subject name" },
+        "textbook": { "type": "string", "description": "Textbook series e.g. Chân trời sáng tạo" },
+        "academicYear": { "type": "string" },
+        "semester": { "type": "string" },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "week": { "type": "number" },
+              "periodNumber": { "type": "number" },
+              "title": { "type": "string" },
+              "topic": { "type": "string" },
+              "requirements": { "type": "string" },
+              "note": { "type": "string" }
+            }
+          }
+        },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["teacherId", "grade", "subject"]
+    },
+    "weeklySchedules": {
+      "title": "Weekly Schedule Items",
+      "description": "Scheduled lesson periods for each week",
+      "properties": {
+        "teacherId": { "type": "string" },
+        "academicYear": { "type": "string" },
+        "semester": { "type": "string" },
+        "weekNumber": { "type": "number" },
+        "dayOfWeek": { "type": "string", "description": "Thứ 2, Thứ 3, Thứ 4, Thứ 5, Thứ 6, Thứ 7" },
+        "period": { "type": "number", "description": "1 to 10 (1-5 Morning, 6-10 Afternoon)" },
+        "className": { "type": "string", "description": "e.g. 4A1" },
+        "subject": { "type": "string" },
+        "grade": { "type": "string" },
+        "lessonTitle": { "type": "string" },
+        "ppctPeriod": { "type": "number" },
+        "status": { "type": "string", "description": "completed | preparing | unprepared" },
+        "objectives": { "type": "string" },
+        "requirements": { "type": "string" },
+        "activities": { "type": "string" },
+        "notes": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["teacherId", "weekNumber", "dayOfWeek", "period", "className"]
+    }
+  }
+}

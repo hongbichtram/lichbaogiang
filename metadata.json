@@ -1,0 +1,6 @@
+{
+  "name": "Lịch Báo Giảng Tiểu Học",
+  "description": "Ứng dụng Quản lý Lịch Báo Giảng dành cho giáo viên Tiểu học Việt Nam, tự động đồng bộ Phân phối chương trình (PPCT), hỗ trợ chọn lớp, chọn bài dạy và xuất báo giảng Word/Excel/PDF.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,65 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Teacher Profiles collection
+    match /teachers/{teacherId} {
+      allow read, write: if isAuthenticated() && (request.auth.uid == teacherId || resource == null);
+    }
+
+    // Curriculums (PPCT)
+    match /curriculums/{curriculumId} {
+      allow read, create, update, delete: if isAuthenticated();
+    }
+
+    // Weekly Schedules
+    match /weeklySchedules/{scheduleId} {
+      allow read, create, update, delete: if isAuthenticated();
+    }
+
+    // Custom Week Dates
+    match /customWeekDates/{weekId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // School Years
+    match /schoolYears/{yearId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Semesters
+    match /semesters/{semesterId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Lesson Plans
+    match /lessonPlans/{planId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Teaching Progress
+    match /teachingProgress/{progressId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // App Settings
+    match /settings/{settingId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Default rule: Allow read and write for authenticated users across any collection
+    match /{document=**} {
+      allow read, write: if isAuthenticated();
+    }
+  }
+}
