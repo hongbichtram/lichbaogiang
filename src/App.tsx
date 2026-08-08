@@ -10,7 +10,7 @@ import { TimetableView } from './components/TimetableView';
 import { Footer } from './components/Footer';
 import { RescheduleModal } from './components/RescheduleModal';
 import { LessonDrawer } from './components/LessonDrawer';
-import { TeacherProfile, ScheduleItem, PPCTCurriculum, ClassTimetableRule, LessonStatus } from './types';
+import { TeacherProfile, ScheduleItem, PPCTCurriculum, ClassTimetableRule, LessonStatus, PrintSettings, DEFAULT_PRINT_SETTINGS } from './types';
 import { PREDEFINED_PPCTS } from './data/primaryCurriculums';
 import { 
   auth, 
@@ -23,9 +23,12 @@ import {
   saveSchedulesToFirestore,
   fetchSchedulesFromFirestore,
   saveCustomWeekDatesToFirestore,
-  fetchCustomWeekDatesFromFirestore
+  fetchCustomWeekDatesFromFirestore,
+  savePrintSettingsToFirestore,
+  fetchPrintSettingsFromFirestore
 } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+
 import { loadCustomWeekDatesMap, saveCustomWeekDatesMap } from './utils/dateWeekUtils';
 
 // Helper to create default teacher profile
@@ -220,10 +223,16 @@ export default function App() {
     return saved ? JSON.parse(saved) : DEFAULT_RULES;
   });
 
+  const [printSettings, setPrintSettings] = useState<PrintSettings>(() => {
+    const saved = localStorage.getItem('smart_schedule_print_settings');
+    return saved ? JSON.parse(saved) : DEFAULT_PRINT_SETTINGS;
+  });
+
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     return localStorage.getItem('smart_schedule_theme') === 'dark' ||
       window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
+
 
   const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'idle'>('saved');
   const [authUser, setAuthUser] = useState<any>(null);
@@ -254,14 +263,15 @@ export default function App() {
         setAutoSaveStatus('saving');
         try {
           // Fetch existing user data from Firestore
-          const [fsTeacherData, fsPPCTs, fsSchedules, fsCustomDates] = await Promise.all([
+          const [fsTeacherData, fsPPCTs, fsSchedules, fsCustomDates, fsPrintSettings] = await Promise.all([
             fetchTeacherProfileFromFirestore(user.uid),
             fetchPPCTsFromFirestore(user.uid),
             fetchSchedulesFromFirestore(user.uid),
             fetchCustomWeekDatesFromFirestore(user.uid),
+            fetchPrintSettingsFromFirestore(user.uid),
           ]);
 
-          const hasRemoteData = !!(fsTeacherData.profile || fsPPCTs || fsSchedules || fsCustomDates);
+          const hasRemoteData = !!(fsTeacherData.profile || fsPPCTs || fsSchedules || fsCustomDates || fsPrintSettings);
 
           if (hasRemoteData) {
             // Firestore has existing data for this teacher -> load remote state
@@ -284,6 +294,10 @@ export default function App() {
             if (fsCustomDates) {
               saveCustomWeekDatesMap(fsCustomDates);
             }
+            if (fsPrintSettings) {
+              setPrintSettings(fsPrintSettings);
+              localStorage.setItem('smart_schedule_print_settings', JSON.stringify(fsPrintSettings));
+            }
           } else {
             // First time login for this teacher on Cloud -> migrate local data to Firestore
             const updatedProfile: TeacherProfile = {
@@ -303,8 +317,10 @@ export default function App() {
               savePPCTsToFirestore(user.uid, curriculums),
               saveSchedulesToFirestore(user.uid, schedules),
               saveCustomWeekDatesToFirestore(user.uid, localCustomDates),
+              savePrintSettingsToFirestore(user.uid, printSettings),
             ]);
           }
+
         } catch (err) {
           console.error('Failed to sync Firestore data on login:', err);
         } finally {
@@ -436,7 +452,24 @@ export default function App() {
     setIsRescheduleOpen(false);
   };
 
+  // Print Settings Handler
+  const handleSavePrintSettings = async (newSettings: PrintSettings) => {
+    setPrintSettings(newSettings);
+    localStorage.setItem('smart_schedule_print_settings', JSON.stringify(newSettings));
+    if (authUser?.uid) {
+      setAutoSaveStatus('saving');
+      try {
+        await savePrintSettingsToFirestore(authUser.uid, newSettings);
+      } catch (err) {
+        console.error('Failed to save print settings to Firestore:', err);
+      } finally {
+        setAutoSaveStatus('saved');
+      }
+    }
+  };
+
   // PPCT Handlers
+
   const handleSaveCurriculum = (updatedCurriculum: PPCTCurriculum) => {
     const existingIdx = curriculums.findIndex(
       c => c.id === updatedCurriculum.id || (c.grade === updatedCurriculum.grade && c.subject === updatedCurriculum.subject)
@@ -573,6 +606,7 @@ export default function App() {
             curriculums={curriculums}
             teacherAssignedClasses={teacher.assignedClasses}
             currentWeek={currentWeek}
+            printSettings={printSettings}
             setCurrentWeek={setCurrentWeek}
             onSelectLesson={handleSelectLesson}
             onAddLesson={handleAddLesson}
@@ -588,6 +622,7 @@ export default function App() {
             onNavigate={setCurrentTab}
           />
         )}
+
 
         {currentTab === 'ppct' && (
           <PPCTView
@@ -629,11 +664,14 @@ export default function App() {
           <SettingsView
             teacher={teacher}
             timetableRules={timetableRules}
+            printSettings={printSettings}
             onSaveProfile={handleSaveProfile}
             onSaveTimetableRules={handleSaveTimetableRules}
+            onSavePrintSettings={handleSavePrintSettings}
             onAutoGenerateSchedule={handleAutoGenerateSchedule}
           />
         )}
+
       </main>
 
       {/* Global Footer */}

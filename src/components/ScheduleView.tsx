@@ -16,7 +16,7 @@ import {
   Calendar,
   ChevronDown
 } from 'lucide-react';
-import { ScheduleItem, ScheduleFilter, LessonStatus, PPCTCurriculum, TeacherProfile } from '../types';
+import { ScheduleItem, ScheduleFilter, LessonStatus, PPCTCurriculum, TeacherProfile, PrintSettings } from '../types';
 import { LessonDrawer } from './LessonDrawer';
 import { AddLessonModal } from './AddLessonModal';
 import { PrintPreviewModal } from './PrintPreviewModal';
@@ -32,6 +32,7 @@ interface ScheduleViewProps {
   curriculums?: PPCTCurriculum[];
   teacherAssignedClasses?: string[];
   currentWeek: number;
+  printSettings?: PrintSettings;
   setCurrentWeek: (week: number) => void;
   onSelectLesson: (item: ScheduleItem) => void;
   onAddLesson: (dayOfWeek: 'Thứ 2' | 'Thứ 3' | 'Thứ 4' | 'Thứ 5' | 'Thứ 6', period: number) => void;
@@ -47,6 +48,7 @@ interface ScheduleViewProps {
   onNavigate?: (tab: string) => void;
 }
 
+
 const DAYS_OF_WEEK: Array<'Thứ 2' | 'Thứ 3' | 'Thứ 4' | 'Thứ 5' | 'Thứ 6'> = [
   'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6'
 ];
@@ -59,8 +61,10 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
   curriculums = [],
   teacherAssignedClasses = DEFAULT_ASSIGNED_CLASSES,
   currentWeek,
+  printSettings,
   setCurrentWeek,
   onSelectLesson,
+
   onAddLesson,
   onAddScheduleItem,
   onStatusChange,
@@ -545,7 +549,9 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
         teacher={teacher}
         schedules={schedules}
         currentWeek={currentWeek}
+        printSettings={printSettings}
       />
+
 
       {/* Date Picker Calendar Modal */}
       <DatePickerModal

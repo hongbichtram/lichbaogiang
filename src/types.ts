@@ -92,3 +92,101 @@ export interface ScheduleFilter {
   status: LessonStatus | 'all';
   searchQuery: string;
 }
+
+export interface PrintSettings {
+  // Header info
+  showSchoolName: boolean;
+  schoolName: string;
+  showTeacherName: boolean;
+  teacherName: string;
+  showTeacherCode: boolean;
+  teacherCode: string;
+  showAcademicYear: boolean;
+  academicYear: string;
+  showSemester: boolean;
+  semester: string;
+  customTitle: string; // e.g. "LỊCH BÁO GIẢNG TUẦN {week}"
+
+  // Schedule Table Column Toggles
+  showColDay: boolean; // Thứ, ngày tháng năm
+  showColPeriod: boolean; // Tiết
+  showColSession: boolean; // Buổi
+  showColClass: boolean; // Lớp
+  showColPpctPeriod: boolean; // Tiết PPCT
+  showColLessonTitle: boolean; // Tên bài dạy
+  showColNotes: boolean; // Ghi chú
+
+  // Typography
+  fontFamily: 'Times New Roman' | 'Arial' | 'Roboto' | 'Calibri' | 'Aptos' | 'Segoe UI';
+  titleFontSize: number; // pt
+  contentFontSize: number; // pt
+  tableFontSize: number; // pt
+  isTitleBold: boolean;
+  isLessonTitleBold: boolean;
+
+  // Layout & Margins
+  paperSize: 'A4' | 'A3' | 'Letter';
+  orientation: 'portrait' | 'landscape'; // Dọc / Ngang
+  marginTop: number; // mm
+  marginBottom: number; // mm
+  marginLeft: number; // mm
+  marginRight: number; // mm
+  contentAlign: 'left' | 'center' | 'right';
+
+  // Footer Signatures
+  showSigCreator: boolean; // Người lập
+  sigCreatorTitle: string;
+  showSigTeacher: boolean; // Giáo viên
+  sigTeacherTitle: string;
+  showSigDepartmentHead: boolean; // Tổ trưởng
+  sigDepartmentHeadTitle: string;
+  showSigBoard: boolean; // Ban giám hiệu
+  sigBoardTitle: string;
+}
+
+export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
+  showSchoolName: true,
+  schoolName: '',
+  showTeacherName: true,
+  teacherName: '',
+  showTeacherCode: true,
+  teacherCode: '',
+  showAcademicYear: true,
+  academicYear: '',
+  showSemester: true,
+  semester: '',
+  customTitle: 'LỊCH BÁO GIẢNG TUẦN {week}',
+
+  showColDay: true,
+  showColPeriod: true,
+  showColSession: false,
+  showColClass: true,
+  showColPpctPeriod: true,
+  showColLessonTitle: true,
+  showColNotes: true,
+
+  fontFamily: 'Times New Roman',
+  titleFontSize: 16,
+  contentFontSize: 13,
+  tableFontSize: 12,
+  isTitleBold: true,
+  isLessonTitleBold: false,
+
+  paperSize: 'A4',
+  orientation: 'portrait',
+  marginTop: 15,
+  marginBottom: 15,
+  marginLeft: 15,
+  marginRight: 15,
+  contentAlign: 'left',
+
+  showSigCreator: false,
+  sigCreatorTitle: 'NGƯỜI LẬP LỊCH',
+  showSigTeacher: true,
+  sigTeacherTitle: 'GIÁO VIÊN BÁO GIẢNG',
+  showSigDepartmentHead: true,
+  sigDepartmentHeadTitle: 'TỔ TRƯỞNG CHUYÊN MÔN',
+  showSigBoard: true,
+  sigBoardTitle: 'BAN GIÁM HIỆU DUYỆT',
+};
+

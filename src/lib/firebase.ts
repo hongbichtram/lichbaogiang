@@ -236,6 +236,44 @@ export const fetchCustomWeekDatesFromFirestore = async (uid: string): Promise<Cu
   return null;
 };
 
+// 5. Print Settings (printSettings/{uid})
+export const savePrintSettingsToFirestore = async (uid: string, settings: any) => {
+  console.log('FIRESTORE SAVE START', { collection: 'printSettings', uid });
+  if (!uid) {
+    console.error('FIRESTORE ERROR', { collection: 'printSettings', uid, action: 'write', error: 'User UID is empty' });
+    return;
+  }
+  try {
+    const ref = doc(db, 'printSettings', uid);
+    await setDoc(ref, { settings, updatedAt: new Date().toISOString() }, { merge: true });
+    console.log('FIRESTORE SAVE SUCCESS', { collection: 'printSettings', uid });
+  } catch (err) {
+    console.error('FIRESTORE ERROR', { collection: 'printSettings', uid, action: 'write', error: err });
+  }
+};
+
+export const fetchPrintSettingsFromFirestore = async (uid: string): Promise<any | null> => {
+  console.log('FIRESTORE LOAD START', { collection: 'printSettings', uid });
+  if (!uid) {
+    console.error('FIRESTORE ERROR', { collection: 'printSettings', uid, action: 'read', error: 'User UID is empty' });
+    return null;
+  }
+  try {
+    const ref = doc(db, 'printSettings', uid);
+    const snap = await getDoc(ref);
+    const exists = snap.exists();
+    console.log('FIRESTORE LOAD SUCCESS', { collection: 'printSettings', uid, dataFound: exists });
+    if (exists) {
+      const data = snap.data();
+      return data.settings || null;
+    }
+  } catch (err) {
+    console.error('FIRESTORE ERROR', { collection: 'printSettings', uid, action: 'read', error: err });
+  }
+  return null;
+};
+
+
 // --- REAL FIRESTORE WRITE TEST FUNCTION ---
 export const testFirestoreWrite = async (): Promise<{ success: boolean; message: string; error?: any }> => {
   const currentUser = auth.currentUser;

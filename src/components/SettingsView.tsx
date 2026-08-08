@@ -15,10 +15,12 @@ import {
   AlertCircle,
   Sun,
   Moon,
-  Info
+  Info,
+  Printer
 } from 'lucide-react';
-import { TeacherProfile, ClassTimetableRule } from '../types';
+import { TeacherProfile, ClassTimetableRule, PrintSettings, DEFAULT_PRINT_SETTINGS } from '../types';
 import { ClassSelectDropdown } from './ClassSelectDropdown';
+import { PrintDesignerComponent } from './PrintDesignerComponent';
 import { 
   inferGradeFromClassName, 
   normalizeClassName, 
@@ -31,9 +33,12 @@ import {
 interface SettingsViewProps {
   teacher: TeacherProfile;
   timetableRules: ClassTimetableRule[];
+  printSettings?: PrintSettings;
   onSaveProfile: (profile: TeacherProfile) => void;
   onSaveTimetableRules: (rules: ClassTimetableRule[]) => void;
+  onSavePrintSettings?: (settings: PrintSettings) => void;
   onAutoGenerateSchedule: () => void;
+  onOpenPreviewModal?: () => void;
 }
 
 const DAYS_OF_WEEK: Array<'Thứ 2' | 'Thứ 3' | 'Thứ 4' | 'Thứ 5' | 'Thứ 6'> = [
@@ -43,16 +48,21 @@ const DAYS_OF_WEEK: Array<'Thứ 2' | 'Thứ 3' | 'Thứ 4' | 'Thứ 5' | 'Thứ
 export const SettingsView: React.FC<SettingsViewProps> = ({
   teacher,
   timetableRules,
+  printSettings = DEFAULT_PRINT_SETTINGS,
   onSaveProfile,
   onSaveTimetableRules,
+  onSavePrintSettings,
   onAutoGenerateSchedule,
+  onOpenPreviewModal,
 }) => {
+  const [activeTab, setActiveTab] = useState<'profile' | 'print_template'>('profile');
   const [profileForm, setProfileForm] = useState<TeacherProfile>({ ...teacher });
   const [rules, setRules] = useState<ClassTimetableRule[]>([...timetableRules]);
   const [addClassInput, setAddClassInput] = useState('');
   const [selectedSubject, setSelectedSubject] = useState<string>(
     teacher.subjects[0] || 'Tin học'
   );
+
 
   // Quick rule form state
   const [newRule, setNewRule] = useState<{
@@ -205,21 +215,63 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   return (
     <div className="space-y-6 pb-12 max-w-7xl mx-auto">
-      {/* Page Header */}
-      <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      {/* Page Header & Navigation Tabs */}
+      <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="space-y-1">
           <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center space-x-2">
             <SettingsIcon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            <span>Cài Đặt & Hồ Sơ Giáo Viên</span>
+            <span>Cài Đặt Hệ Thống</span>
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Cập nhật thông tin giáo viên, trường học, học kỳ và danh sách lớp giảng dạy.
+            Quản lý thông tin hồ sơ giáo viên, danh sách lớp học và tùy chỉnh giao diện Mẫu In Lịch Báo Giảng.
           </p>
+        </div>
+
+        {/* Tab Selector */}
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 shrink-0">
+          <button
+            type="button"
+            onClick={() => setActiveTab('profile')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'profile'
+                ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <User className="w-4 h-4" />
+            <span>Hồ Sơ & Danh Sách Lớp</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('print_template')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'print_template'
+                ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Printer className="w-4 h-4" />
+            <span>Thiết Kế Mẫu In</span>
+          </button>
         </div>
       </div>
 
-      {/* Grid Layout: Teacher Profile & Class Management */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {activeTab === 'print_template' ? (
+        <PrintDesignerComponent
+          teacher={teacher}
+          settings={printSettings}
+          onSaveSettings={(newSettings) => {
+            if (onSavePrintSettings) onSavePrintSettings(newSettings);
+          }}
+          onOpenPreviewModal={() => {
+            if (onOpenPreviewModal) onOpenPreviewModal();
+          }}
+        />
+      ) : (
+        /* Grid Layout: Teacher Profile & Class Management */
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
         
         {/* Card 1: Teacher & School Info */}
         <form onSubmit={handleProfileSubmit} className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm space-y-4">
@@ -373,8 +425,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             )}
           </div>
         </div>
-
       </div>
+      )}
     </div>
   );
 };
+
+
