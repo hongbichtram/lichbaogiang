@@ -7,7 +7,8 @@ import {
   formatDateDDMMYYYY, 
   getActualDayDate, 
   loadCustomWeekDatesMap, 
-  isSameDay 
+  isSameDay,
+  getWeekNumberFromDate
 } from '../utils/dateWeekUtils';
 
 interface DashboardViewProps {
@@ -22,11 +23,23 @@ interface DashboardViewProps {
 export const DashboardView: React.FC<DashboardViewProps> = ({
   teacher,
   schedules = [],
+  currentWeek,
+  setCurrentWeek,
   onNavigate,
   onSelectLesson,
 }) => {
   // Today's real system date state
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
+
+  const handleViewSchedule = () => {
+    const targetWeek = getWeekNumberFromDate(selectedDate, teacher?.academicYear || '2025-2026');
+    if (setCurrentWeek) {
+      setCurrentWeek(targetWeek);
+    }
+    if (onNavigate) {
+      onNavigate('schedule');
+    }
+  };
 
   // Format date in Vietnamese e.g. "Thứ Hai, 10/08/2026"
   const dateFormatted = useMemo(() => {
@@ -116,13 +129,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
-        {/* View Timetable Action Button */}
+        {/* View Schedule Action Button */}
         <div>
           <button
-            onClick={() => onNavigate?.('timetable')}
+            onClick={handleViewSchedule}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-500/20 transition-all group"
           >
-            <span>Xem thời khóa biểu</span>
+            <span>Xem lịch báo giảng</span>
             <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
           </button>
         </div>

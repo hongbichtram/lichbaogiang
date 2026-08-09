@@ -546,27 +546,51 @@ export default function App() {
   };
 
   // Auto Generate Schedule from Timetable Rules + Curriculums
-  const handleAutoGenerateSchedule = () => {
-    if (timetableRules.length === 0) return;
+  const handleGenerateFromTKB = (weekNumber?: number) => {
+    if (timetableRules.length === 0) return { createdCount: 0, skippedCount: 0 };
+    
+    const weeksToProcess = weekNumber ? [weekNumber] : Array.from({ length: 35 }, (_, i) => i + 1);
+    const existing = [...schedules];
     const newItems: ScheduleItem[] = [];
+    let createdCount = 0;
+    let skippedCount = 0;
 
-    for (let w = 1; w <= 35; w++) {
+    for (const w of weeksToProcess) {
       timetableRules.forEach((rule, idx) => {
+        const normSession = getNormalizedSession(rule);
+        const normPeriod = getNormalizedPeriod(rule);
+
+        // Check if an item already exists for this slot in week w
+        const exists = existing.some(s => 
+          s.weekNumber === w &&
+          s.dayOfWeek === rule.dayOfWeek &&
+          getNormalizedSession(s) === normSession &&
+          getNormalizedPeriod(s) === normPeriod &&
+          s.className === rule.className
+        );
+
+        if (exists) {
+          skippedCount++;
+          return; // Skip duplicate! Keep existing item unchanged.
+        }
+
         const curr = curriculums.find(c => c.grade === rule.grade && c.subject === rule.subject);
-        const ppctItem = curr?.items.find(i => i.week === w);
+        const ppctItem = curr?.items.find(i => i.week === w) || curr?.items.find(i => i.periodNumber === w);
+
         const dayClean = (rule.dayOfWeek || 'day').replace(/\s+/g, '');
         const ruleIdPart = rule.id || `${rule.className}-${rule.subject}-${idx}`;
 
-        newItems.push({
-          id: `gen-${ruleIdPart}-${dayClean}-p${rule.period}-w${w}`,
+        const createdItem: ScheduleItem = {
+          id: `gen-${ruleIdPart}-${dayClean}-p${normPeriod}-w${w}-${Date.now()}`,
           teacherId: teacher.uid,
           curriculumId: curr?.id,
           lessonId: ppctItem?.id,
-          academicYear: teacher.academicYear,
-          semester: teacher.semester,
+          academicYear: teacher.academicYear || '2025-2026',
+          semester: teacher.semester || 'Học kỳ I',
           weekNumber: w,
           dayOfWeek: rule.dayOfWeek,
-          period: rule.period,
+          session: normSession,
+          period: normPeriod,
           className: rule.className,
           subject: rule.subject,
           grade: rule.grade,
@@ -576,11 +600,22 @@ export default function App() {
           status: w < currentWeek ? 'completed' : w === currentWeek ? 'preparing' : 'unprepared',
           requirements: ppctItem?.requirements,
           updatedAt: new Date().toISOString(),
-        });
+        };
+
+        newItems.push(createdItem);
+        createdCount++;
       });
     }
 
-    updateSchedulesWithHistory(newItems);
+    if (newItems.length > 0) {
+      updateSchedulesWithHistory([...existing, ...newItems]);
+    }
+
+    return { createdCount, skippedCount };
+  };
+
+  const handleAutoGenerateSchedule = () => {
+    handleGenerateFromTKB();
   };
 
   // Settings Handlers
@@ -648,6 +683,7 @@ export default function App() {
             teacher={teacher}
             schedules={schedules}
             curriculums={curriculums}
+            timetableRules={timetableRules}
             teacherAssignedClasses={teacher.assignedClasses}
             currentWeek={currentWeek}
             printSettings={printSettings}
@@ -664,6 +700,7 @@ export default function App() {
             onUndo={handleUndo}
             onRedo={handleRedo}
             onNavigate={setCurrentTab}
+            onGenerateFromTKB={handleGenerateFromTKB}
           />
         )}
 

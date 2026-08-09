@@ -10,10 +10,11 @@ import {
   Clock,
   Check
 } from 'lucide-react';
-import { ScheduleItem, TeacherProfile, PPCTCurriculum, PPCTItem } from '../types';
+import { ScheduleItem, TeacherProfile, PPCTCurriculum, PPCTItem, ClassTimetableRule } from '../types';
 import { getWeekDayDate } from '../utils/exportUtils';
 import { inferGradeFromClassName } from '../utils/classUtils';
 import { getTeacherUniqueSubjects } from '../utils/subjectUtils';
+import { getScheduleForTeachingSlot } from '../utils/timetableUtils';
 
 interface AddLessonModalProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ interface AddLessonModalProps {
   currentWeek: number;
   teacher: TeacherProfile;
   curriculums: PPCTCurriculum[];
+  timetableRules?: ClassTimetableRule[];
   schedules: ScheduleItem[];
   assignedClasses: string[];
   onSave: (newItem: ScheduleItem) => void;
@@ -40,6 +42,7 @@ export const AddLessonModal: React.FC<AddLessonModalProps> = ({
   currentWeek,
   teacher,
   curriculums,
+  timetableRules = [],
   schedules,
   assignedClasses,
   onSave,
@@ -71,6 +74,24 @@ export const AddLessonModal: React.FC<AddLessonModalProps> = ({
     if (assignedClasses && assignedClasses.length > 0) return assignedClasses;
     return ['3A1', '3A2', '3A3', '4A1', '4A2', '4A3', '5A1', '5A2', '5A3'];
   }, [assignedClasses]);
+
+  // Find matching slot in Timetable (TKB)
+  const tkbSlot = useMemo(() => {
+    return getScheduleForTeachingSlot(
+      timetableRules,
+      dayOfWeek,
+      subPeriod,
+      session === 'sáng' ? 'Sáng' : 'Chiều'
+    );
+  }, [timetableRules, dayOfWeek, subPeriod, session]);
+
+  // When TKB slot is found for the selected day + period, auto fill class & subject
+  useEffect(() => {
+    if (tkbSlot) {
+      if (tkbSlot.className) setSelectedClass(tkbSlot.className);
+      if (tkbSlot.subject) setSelectedSubject(tkbSlot.subject);
+    }
+  }, [tkbSlot]);
 
   // Sync initial parameters when modal opens
   useEffect(() => {
@@ -180,6 +201,8 @@ export const AddLessonModal: React.FC<AddLessonModalProps> = ({
     const newItem: ScheduleItem = {
       id: `s-custom-${Date.now()}`,
       teacherId: teacher.uid,
+      curriculumId: matchingCurriculum?.id,
+      lessonId: suggestedPpctItem?.id,
       academicYear: teacher.academicYear || '2025-2026',
       semester: teacher.semester || 'Học kỳ I',
       weekNumber: currentWeek,
@@ -192,6 +215,8 @@ export const AddLessonModal: React.FC<AddLessonModalProps> = ({
       grade: currentGrade,
       ppctPeriod: ppctPeriod || undefined,
       lessonTitle: lessonTitle || `Tiết ${ppctPeriod}`,
+      topic: suggestedPpctItem?.topic,
+      requirements: suggestedPpctItem?.requirements,
       notes: notes.trim() || undefined,
       status: 'unprepared',
       updatedAt: new Date().toISOString(),
@@ -299,6 +324,24 @@ export const AddLessonModal: React.FC<AddLessonModalProps> = ({
               </select>
             </div>
           </div>
+
+          {/* TKB Relation Banner */}
+          {tkbSlot ? (
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800 rounded-xl text-xs font-bold text-emerald-800 dark:text-emerald-300 flex items-center justify-between shadow-2xs">
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span>Theo TKB: Lớp <strong className="font-black underline">{tkbSlot.className}</strong> – Môn <strong className="font-black underline">{tkbSlot.subject}</strong></span>
+              </span>
+              <span className="text-[10px] bg-emerald-200/60 dark:bg-emerald-900/60 px-2 py-0.5 rounded-md uppercase font-extrabold text-emerald-900 dark:text-emerald-200 shrink-0">
+                Đã liên kết TKB
+              </span>
+            </div>
+          ) : (
+            <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800 rounded-xl text-xs font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5 shadow-2xs">
+              <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+              <span>Chưa có tiết dạy trong thời khóa biểu ở thời điểm này.</span>
+            </div>
+          )}
 
           {/* Field 4 & 5: Môn học & Lớp */}
           <div className="grid grid-cols-2 gap-3">

@@ -14,9 +14,12 @@ import {
   RotateCw,
   Edit2,
   Calendar,
-  ChevronDown
+  ChevronDown,
+  Sparkles,
+  CheckCircle2,
+  AlertTriangle
 } from 'lucide-react';
-import { ScheduleItem, ScheduleFilter, LessonStatus, PPCTCurriculum, TeacherProfile, PrintSettings } from '../types';
+import { ScheduleItem, ScheduleFilter, LessonStatus, PPCTCurriculum, TeacherProfile, PrintSettings, ClassTimetableRule } from '../types';
 import { LessonDrawer } from './LessonDrawer';
 import { AddLessonModal } from './AddLessonModal';
 import { PrintPreviewModal } from './PrintPreviewModal';
@@ -26,11 +29,13 @@ import { getWeekRangeFormatted, loadCustomWeekDatesMap } from '../utils/dateWeek
 import { getWeekDayDate } from '../utils/exportUtils';
 import { formatTableSessionPeriod, getNormalizedSession, getNormalizedPeriod, formatLessonDisplayTitle } from '../utils/classUtils';
 import { getSubjectColorStyle } from '../utils/subjectUtils';
+import { getScheduleForTeachingSlot } from '../utils/timetableUtils';
 
 interface ScheduleViewProps {
   teacher?: TeacherProfile;
   schedules: ScheduleItem[];
   curriculums?: PPCTCurriculum[];
+  timetableRules?: ClassTimetableRule[];
   teacherAssignedClasses?: string[];
   currentWeek: number;
   printSettings?: PrintSettings;
@@ -47,6 +52,7 @@ interface ScheduleViewProps {
   onUndo: () => void;
   onRedo: () => void;
   onNavigate?: (tab: string) => void;
+  onGenerateFromTKB?: (weekNumber?: number) => { createdCount: number; skippedCount: number };
 }
 
 
@@ -60,6 +66,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
   teacher,
   schedules,
   curriculums = [],
+  timetableRules = [],
   teacherAssignedClasses = DEFAULT_ASSIGNED_CLASSES,
   currentWeek,
   printSettings,
@@ -77,6 +84,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
   onUndo,
   onRedo,
   onNavigate,
+  onGenerateFromTKB,
 }) => {
   // Filter state
   const [filter, setFilter] = useState<ScheduleFilter>({
@@ -97,12 +105,23 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
   const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [isEditWeekDateOpen, setIsEditWeekDateOpen] = useState(false);
+  const [isConfirmGenModalOpen, setIsConfirmGenModalOpen] = useState(false);
   const [customWeekDatesMap, setCustomWeekDatesMap] = useState(() => loadCustomWeekDatesMap());
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const handleConfirmGenerateFromTKB = () => {
+    setIsConfirmGenModalOpen(false);
+    if (onGenerateFromTKB) {
+      const res = onGenerateFromTKB(currentWeek);
+      showToast(`✅ Đã tạo ${res.createdCount} tiết dạy từ TKB. (${res.skippedCount} tiết đã có giữ nguyên)`);
+    } else {
+      showToast('✅ Đã khởi tạo lịch báo giảng từ Thời khóa biểu tuần này.');
+    }
   };
 
   // Add Modal state
@@ -163,6 +182,15 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
           >
             <Plus className="w-4 h-4" />
             <span>Thêm tiết dạy</span>
+          </button>
+
+          <button
+            onClick={() => setIsConfirmGenModalOpen(true)}
+            className="flex items-center space-x-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold shadow-2xs transition-colors"
+            title="Tạo lịch báo giảng từ thời khóa biểu tuần này"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Tạo lịch từ TKB</span>
           </button>
 
           <button
@@ -430,6 +458,13 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
 
                 // If there are items for this day, render rows with rowSpan on Column 1
                 return dayItems.map((item, index) => {
+                  const isMatchedTKB = Boolean(getScheduleForTeachingSlot(
+                    timetableRules,
+                    item.dayOfWeek,
+                    getNormalizedPeriod(item),
+                    getNormalizedSession(item)
+                  ));
+
                   return (
                     <tr 
                       key={item.id}
@@ -475,9 +510,16 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
                       {/* Column 5: Tên bài dạy */}
                       <td className="px-4 py-3.5 border-r border-slate-200/80 dark:border-slate-800">
                         <div className="flex items-center justify-between gap-2">
-                          <span className={`text-xs font-bold ${item.lessonTitle ? 'text-slate-900 dark:text-white group-hover:text-blue-700 dark:group-hover:text-blue-300' : 'text-slate-400 italic'}`}>
-                            {formatLessonDisplayTitle(item.lessonTitle, item.subject, 'Chưa chọn bài')}
-                          </span>
+                          <div className="flex items-center gap-2 overflow-hidden">
+                            <span className={`text-xs font-bold truncate ${item.lessonTitle ? 'text-slate-900 dark:text-white group-hover:text-blue-700 dark:group-hover:text-blue-300' : 'text-slate-400 italic'}`}>
+                              {formatLessonDisplayTitle(item.lessonTitle, item.subject, 'Chưa chọn bài')}
+                            </span>
+                            {isMatchedTKB && (
+                              <span className="text-[10px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/80 font-bold px-1.5 py-0.5 rounded border border-emerald-200/80 dark:border-emerald-800/80 shrink-0" title="Thời khóa biểu cố định">
+                                Theo TKB
+                              </span>
+                            )}
+                          </div>
                           <Edit2 className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 group-hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-all shrink-0" />
                         </div>
                       </td>
@@ -532,6 +574,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
           semester: 'Học kỳ I'
         }}
         curriculums={curriculums}
+        timetableRules={timetableRules}
         schedules={schedules}
         assignedClasses={assignedClassList}
         onSave={(newItem) => {
@@ -542,6 +585,46 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
           }
         }}
       />
+
+      {/* Confirmation Modal for Creating Schedule from TKB */}
+      {isConfirmGenModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
+            <div className="flex items-center space-x-3 text-purple-600 dark:text-purple-400">
+              <Sparkles className="w-6 h-6 shrink-0" />
+              <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                TẠO LỊCH BÁO GIẢNG TỪ TKB
+              </h3>
+            </div>
+
+            <div className="space-y-2 text-xs text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
+              <p className="font-bold text-slate-800 dark:text-slate-100">
+                Bạn có chắc chắn muốn tạo lịch báo giảng từ thời khóa biểu cho <strong className="text-purple-600 dark:text-purple-400">Tuần {currentWeek}</strong> không?
+              </p>
+              <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-500 dark:text-slate-400">
+                <li>Ứng dụng sẽ lấy Lớp, Môn và Tiết từ TKB cố định của bạn.</li>
+                <li>Tự động chọn bài dạy tương ứng từ PPCT.</li>
+                <li><strong>Không xóa hoặc ghi đè</strong> các bài PPCT bạn đã chỉnh sửa thủ công.</li>
+              </ul>
+            </div>
+
+            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+              <button
+                onClick={() => setIsConfirmGenModalOpen(false)}
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleConfirmGenerateFromTKB}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-black shadow-md shadow-purple-500/20 transition-all"
+              >
+                Tạo lịch
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Print Preview Modal */}
       <PrintPreviewModal
