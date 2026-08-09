@@ -1,7 +1,7 @@
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, AlignmentType, WidthType, BorderStyle, VerticalMergeType, VerticalAlign } from 'docx';
 import * as XLSX from 'xlsx';
 import { ScheduleItem, TeacherProfile } from '../types';
-import { formatTableSessionPeriod, getNormalizedSession, getNormalizedPeriod } from './classUtils';
+import { formatTableSessionPeriod, getNormalizedSession, getNormalizedPeriod, formatLessonDisplayTitle } from './classUtils';
 
 export const getDayDisplayName = (day: string): string => {
   switch (day) {
@@ -166,7 +166,7 @@ export const exportWeeklyWordDoc = async (
             new TableCell({
               width: { size: 45, type: WidthType.PERCENTAGE },
               verticalAlign: VerticalAlign.CENTER,
-              children: [new Paragraph({ text: item.lessonTitle || 'Chưa cập nhật' })],
+              children: [new Paragraph({ text: formatLessonDisplayTitle(item.lessonTitle, item.subject, 'Chưa cập nhật') })],
             }),
             new TableCell({
               width: { size: 12, type: WidthType.PERCENTAGE },
@@ -288,7 +288,7 @@ export const exportWeeklyExcel = (
         formatTableSessionPeriod(item.period, item.session),
         item.className,
         item.ppctPeriod ? item.ppctPeriod.toString() : '-',
-        item.lessonTitle || '',
+        formatLessonDisplayTitle(item.lessonTitle, item.subject, ''),
         item.notes || '',
       ]);
       currentRowIndex++;

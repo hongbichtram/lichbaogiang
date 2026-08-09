@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { ScheduleItem, TeacherProfile } from '../types';
 import { exportWeeklyWordDoc, exportWeeklyExcel, groupSchedulesByDay } from '../utils/exportUtils';
+import { formatLessonDisplayTitle } from '../utils/classUtils';
 
 interface ExportViewProps {
   teacher: TeacherProfile;
@@ -190,7 +191,7 @@ export const ExportView: React.FC<ExportViewProps> = ({ teacher, schedules, curr
                       <td className="border border-slate-400 px-2 py-2 text-center align-middle">Tiết {item.period}</td>
                       <td className="border border-slate-400 px-2 py-2 text-center align-middle font-bold">{item.className}</td>
                       <td className="border border-slate-400 px-2 py-2 text-center align-middle">{item.ppctPeriod || '-'}</td>
-                      <td className="border border-slate-400 px-2.5 py-2 align-middle font-medium">{item.lessonTitle || 'Chưa cập nhật'}</td>
+                      <td className="border border-slate-400 px-2.5 py-2 align-middle font-medium">{formatLessonDisplayTitle(item.lessonTitle, item.subject, 'Chưa cập nhật')}</td>
                       <td className="border border-slate-400 px-2.5 py-2 align-middle text-slate-700">{item.notes || ''}</td>
                     </tr>
                   ))

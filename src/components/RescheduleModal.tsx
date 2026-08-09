@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeftRight, X, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { ScheduleItem } from '../types';
-import { getFullPeriodLabel } from '../utils/classUtils';
+import { getFullPeriodLabel, formatLessonDisplayTitle } from '../utils/classUtils';
 
 interface RescheduleModalProps {
   item: ScheduleItem | null;
@@ -52,7 +52,7 @@ export const RescheduleModal: React.FC<RescheduleModalProps> = ({
             Bài dạy hiện tại (Tiết PPCT {item.ppctPeriod || '-'})
           </span>
           <span className="font-bold text-slate-900 dark:text-white text-sm block">
-            {item.lessonTitle}
+            {formatLessonDisplayTitle(item.lessonTitle, item.subject)}
           </span>
         </div>
 

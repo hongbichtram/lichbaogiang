@@ -2,7 +2,7 @@ import React from 'react';
 import { X, Printer, FileText, FileSpreadsheet, Download } from 'lucide-react';
 import { ScheduleItem, TeacherProfile, PrintSettings, DEFAULT_PRINT_SETTINGS } from '../types';
 import { exportWeeklyWordDoc, exportWeeklyExcel, groupSchedulesByDay } from '../utils/exportUtils';
-import { formatTableSessionPeriod } from '../utils/classUtils';
+import { formatTableSessionPeriod, formatLessonDisplayTitle } from '../utils/classUtils';
 
 interface PrintPreviewModalProps {
   isOpen: boolean;
@@ -267,7 +267,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                               style={{ fontWeight: cfg.isLessonTitleBold ? 'bold' : 'normal' }}
                               className="border border-slate-400 px-2.5 py-2 align-middle text-left"
                             >
-                              {item.lessonTitle || 'Chưa cập nhật'}
+                              {formatLessonDisplayTitle(item.lessonTitle, item.subject, 'Chưa cập nhật')}
                             </td>
                           )}
                           {cfg.showColNotes && (

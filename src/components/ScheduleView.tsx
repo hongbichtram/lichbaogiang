@@ -24,7 +24,8 @@ import { DatePickerModal } from './DatePickerModal';
 import { EditWeekDateModal } from './EditWeekDateModal';
 import { getWeekRangeFormatted, loadCustomWeekDatesMap } from '../utils/dateWeekUtils';
 import { getWeekDayDate } from '../utils/exportUtils';
-import { formatTableSessionPeriod, getNormalizedSession, getNormalizedPeriod } from '../utils/classUtils';
+import { formatTableSessionPeriod, getNormalizedSession, getNormalizedPeriod, formatLessonDisplayTitle } from '../utils/classUtils';
+import { getSubjectColorStyle } from '../utils/subjectUtils';
 
 interface ScheduleViewProps {
   teacher?: TeacherProfile;
@@ -475,7 +476,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
                       <td className="px-4 py-3.5 border-r border-slate-200/80 dark:border-slate-800">
                         <div className="flex items-center justify-between gap-2">
                           <span className={`text-xs font-bold ${item.lessonTitle ? 'text-slate-900 dark:text-white group-hover:text-blue-700 dark:group-hover:text-blue-300' : 'text-slate-400 italic'}`}>
-                            {item.lessonTitle || 'Chưa chọn bài'}
+                            {formatLessonDisplayTitle(item.lessonTitle, item.subject, 'Chưa chọn bài')}
                           </span>
                           <Edit2 className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 group-hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-all shrink-0" />
                         </div>

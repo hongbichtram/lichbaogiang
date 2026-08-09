@@ -97,7 +97,14 @@ export const saveTeacherProfileToFirestore = async (uid: string, profile: Teache
   }
   try {
     const ref = doc(db, 'teachers', uid);
-    await setDoc(ref, { profile, rules: rules || null, updatedAt: new Date().toISOString() }, { merge: true });
+    await setDoc(ref, { 
+      name: profile.fullName || '',
+      email: profile.email || '',
+      assignedSubjects: profile.subjects || [],
+      profile, 
+      rules: rules || null, 
+      updatedAt: new Date().toISOString() 
+    }, { merge: true });
     console.log('FIRESTORE SAVE SUCCESS', { collection: 'teachers', uid });
   } catch (err) {
     console.error('FIRESTORE ERROR', { collection: 'teachers', uid, action: 'write', error: err });
@@ -117,7 +124,17 @@ export const fetchTeacherProfileFromFirestore = async (uid: string): Promise<{ p
     console.log('FIRESTORE LOAD SUCCESS', { collection: 'teachers', uid, dataFound: exists });
     if (exists) {
       const data = snap.data();
-      return { profile: data.profile || null, rules: data.rules || null };
+      let profileData = data.profile || null;
+      if (profileData) {
+        const assigned = data.assignedSubjects || profileData.subjects;
+        if (Array.isArray(assigned) && assigned.length > 0) {
+          profileData = {
+            ...profileData,
+            subjects: assigned,
+          };
+        }
+      }
+      return { profile: profileData, rules: data.rules || null };
     }
   } catch (err) {
     console.error('FIRESTORE ERROR', { collection: 'teachers', uid, action: 'read', error: err });

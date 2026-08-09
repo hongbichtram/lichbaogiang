@@ -185,6 +185,23 @@ function generateInitialSchedules(): ScheduleItem[] {
   return items;
 }
 
+// Utility to guarantee unique IDs across schedule items
+function ensureUniqueScheduleIds(items: ScheduleItem[]): ScheduleItem[] {
+  const seenIds = new Set<string>();
+  return items.map((item, idx) => {
+    let uniqueId = item.id;
+    if (!uniqueId || seenIds.has(uniqueId)) {
+      const dayClean = (item.dayOfWeek || 'day').replace(/\s+/g, '');
+      uniqueId = `${item.id || 'item'}-${dayClean}-p${item.period || 0}-${idx}`;
+    }
+    seenIds.add(uniqueId);
+    if (uniqueId !== item.id) {
+      return { ...item, id: uniqueId };
+    }
+    return item;
+  });
+}
+
 export default function App() {
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [currentWeek, setCurrentWeek] = useState<number>(10);
@@ -195,7 +212,8 @@ export default function App() {
 
   const [schedules, setSchedules] = useState<ScheduleItem[]>(() => {
     const saved = localStorage.getItem('smart_schedule_items');
-    return saved ? JSON.parse(saved) : generateInitialSchedules();
+    const items = saved ? JSON.parse(saved) : generateInitialSchedules();
+    return ensureUniqueScheduleIds(items);
   });
 
   // History stack for Undo/Redo
@@ -288,8 +306,9 @@ export default function App() {
               localStorage.setItem('smart_schedule_ppcts', JSON.stringify(fsPPCTs));
             }
             if (fsSchedules) {
-              setSchedules(fsSchedules);
-              localStorage.setItem('smart_schedule_items', JSON.stringify(fsSchedules));
+              const sanitized = ensureUniqueScheduleIds(fsSchedules);
+              setSchedules(sanitized);
+              localStorage.setItem('smart_schedule_items', JSON.stringify(sanitized));
             }
             if (fsCustomDates) {
               saveCustomWeekDatesMap(fsCustomDates);
@@ -333,13 +352,14 @@ export default function App() {
 
   // Save schedules to LocalStorage & Firestore with Auto-save indicator
   const updateSchedulesWithHistory = (newSchedules: ScheduleItem[]) => {
+    const sanitized = ensureUniqueScheduleIds(newSchedules);
     setAutoSaveStatus('saving');
     setHistory(prev => [...prev, schedules]);
     setRedoStack([]);
-    setSchedules(newSchedules);
-    localStorage.setItem('smart_schedule_items', JSON.stringify(newSchedules));
+    setSchedules(sanitized);
+    localStorage.setItem('smart_schedule_items', JSON.stringify(sanitized));
     if (authUser?.uid) {
-      saveSchedulesToFirestore(authUser.uid, newSchedules);
+      saveSchedulesToFirestore(authUser.uid, sanitized);
     } else {
       console.warn('SAVE SCHEDULE SKIPPED: User is not logged in (authUser is null). Log in to save to Cloud Firestore.');
     }
@@ -526,12 +546,14 @@ export default function App() {
     const newItems: ScheduleItem[] = [];
 
     for (let w = 1; w <= 35; w++) {
-      timetableRules.forEach(rule => {
+      timetableRules.forEach((rule, idx) => {
         const curr = curriculums.find(c => c.grade === rule.grade && c.subject === rule.subject);
         const ppctItem = curr?.items.find(i => i.week === w);
+        const dayClean = (rule.dayOfWeek || 'day').replace(/\s+/g, '');
+        const ruleIdPart = rule.id || `${rule.className}-${rule.subject}-${idx}`;
 
         newItems.push({
-          id: `gen-${rule.className}-${rule.subject}-w${w}`,
+          id: `gen-${ruleIdPart}-${dayClean}-p${rule.period}-w${w}`,
           teacherId: teacher.uid,
           academicYear: teacher.academicYear,
           semester: teacher.semester,
@@ -555,11 +577,26 @@ export default function App() {
   };
 
   // Settings Handlers
-  const handleSaveProfile = (newProfile: TeacherProfile) => {
+  const handleSaveProfile = async (newProfile: TeacherProfile) => {
     setTeacher(newProfile);
     localStorage.setItem('smart_schedule_teacher', JSON.stringify(newProfile));
-    if (authUser?.uid) {
-      saveTeacherProfileToFirestore(authUser.uid, newProfile, timetableRules);
+    const uid = authUser?.uid || newProfile.uid;
+    console.log('SETTINGS SUBJECT SAVE', {
+      UID: uid || 'no-uid',
+      DATA: newProfile.subjects || [],
+    });
+    if (uid) {
+      try {
+        await saveTeacherProfileToFirestore(uid, newProfile, timetableRules);
+        console.log('SETTINGS SUBJECT SAVE SUCCESS');
+      } catch (err: any) {
+        console.error('SETTINGS SUBJECT SAVE ERROR', {
+          'ERROR CODE': err?.code || 'unknown',
+          'ERROR MESSAGE': err?.message || String(err),
+        });
+      }
+    } else {
+      console.log('SETTINGS SUBJECT SAVE SUCCESS (Local storage)');
     }
   };
 

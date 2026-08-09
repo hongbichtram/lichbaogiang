@@ -70,9 +70,9 @@ export function getPeriodName(period: number, session?: string): string {
 /**
  * Returns session label for period.
  */
-export function getSessionName(period: number, session?: string): '☀️ BUỔI SÁNG' | '🌤️ BUỔI CHIỀU' {
+export function getSessionName(period: number, session?: string): 'BUỔI SÁNG' | 'BUỔI CHIỀU' {
   const normS = getNormalizedSession({ session, period });
-  return normS === 'Sáng' ? '☀️ BUỔI SÁNG' : '🌤️ BUỔI CHIỀU';
+  return normS === 'Sáng' ? 'BUỔI SÁNG' : 'BUỔI CHIỀU';
 }
 
 /**
@@ -85,15 +85,44 @@ export function getFullPeriodLabel(period: number, session?: string): string {
 }
 
 /**
- * Table format for session and period e.g. "☀️ Sáng – Tiết 1" or "🌤️ Chiều – Tiết 2"
+ * Table format for session and period e.g. "Sáng – Tiết 1" or "Chiều – Tiết 2"
  */
 export function formatTableSessionPeriod(period: number, session?: string): string {
   const normS = getNormalizedSession({ session, period });
   const normP = getNormalizedPeriod({ session, period });
   if (normS === 'Sáng') {
-    return `☀️ Sáng – Tiết ${normP}`;
+    return `Sáng – Tiết ${normP}`;
   }
-  return `🌤️ Chiều – Tiết ${normP}`;
+  return `Chiều – Tiết ${normP}`;
 }
+
+/**
+ * Formats lesson title with subject prefix for display.
+ * e.g. "Tin học – Bài 10: Chèn bảng vào văn bản soạn thảo"
+ */
+export function formatLessonDisplayTitle(lessonTitle?: string, subject?: string, fallback = 'Chưa chọn bài'): string {
+  const rawTitle = lessonTitle?.trim();
+  const subj = subject?.trim();
+
+  if (!rawTitle) {
+    if (subj) {
+      return `${subj} – ${fallback}`;
+    }
+    return fallback;
+  }
+
+  if (subj) {
+    // Avoid duplicate prefixing if title already starts with subject name
+    const lowerTitle = rawTitle.toLowerCase();
+    const lowerSubj = subj.toLowerCase();
+    if (lowerTitle.startsWith(lowerSubj)) {
+      return rawTitle;
+    }
+    return `${subj} – ${rawTitle}`;
+  }
+
+  return rawTitle;
+}
+
 
 

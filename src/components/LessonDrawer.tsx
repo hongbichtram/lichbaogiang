@@ -9,7 +9,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { ScheduleItem, LessonStatus, PPCTCurriculum, PPCTItem } from '../types';
-import { getFullPeriodLabel, inferGradeFromClassName, formatTableSessionPeriod } from '../utils/classUtils';
+import { getFullPeriodLabel, inferGradeFromClassName, formatTableSessionPeriod, formatLessonDisplayTitle } from '../utils/classUtils';
 import { getWeekDayDate } from '../utils/exportUtils';
 
 interface LessonDrawerProps {
@@ -165,22 +165,48 @@ export const LessonDrawer: React.FC<LessonDrawerProps> = ({
               </div>
             )}
 
-            {/* Lớp Selector */}
-            <div className="space-y-1">
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                Lớp học
-              </label>
-              <select
-                value={formData.className || '4A1'}
-                onChange={(e) => handleChange('className', e.target.value)}
-                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-              >
-                {classList.map((cls) => (
-                  <option key={cls} value={cls}>
-                    Lớp {cls}
-                  </option>
-                ))}
-              </select>
+            {/* Môn học & Lớp Selector */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Môn học
+                </label>
+                <select
+                  value={formData.subject || 'Tin học'}
+                  onChange={(e) => {
+                    handleChange('subject', e.target.value);
+                    handleChange('subjectName', e.target.value);
+                  }}
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-blue-500/40 rounded-xl text-xs font-extrabold text-blue-700 dark:text-blue-300 focus:ring-2 focus:ring-blue-500"
+                >
+                  {Array.from(new Set([
+                    'Tin học', 'Toán', 'Tiếng Việt', 'Công nghệ', 'Tiếng Anh', 'Khoa học', 'Lịch sử và Địa lý', 'Đạo đức', 'Âm nhạc', 'Mĩ thuật', 'Giáo dục thể chất', 'Hoạt động trải nghiệm',
+                    ...(curriculums.map(c => c.subject).filter(Boolean)),
+                    ...(formData.subject ? [formData.subject] : [])
+                  ])).map((sub) => (
+                    <option key={sub} value={sub}>
+                      {sub}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Lớp học
+                </label>
+                <select
+                  value={formData.className || '4A1'}
+                  onChange={(e) => handleChange('className', e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                >
+                  {classList.map((cls) => (
+                    <option key={cls} value={cls}>
+                      Lớp {cls}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             {/* Tiết PPCT */}
@@ -341,7 +367,7 @@ export const LessonDrawer: React.FC<LessonDrawerProps> = ({
               <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800">
                 <span className="font-semibold text-slate-400 block mb-0.5">Tên bài dạy:</span>
                 <span className="font-bold text-slate-900 dark:text-white block line-clamp-2">
-                  {formData.lessonTitle || 'Chưa chọn bài'}
+                  {formatLessonDisplayTitle(formData.lessonTitle, formData.subject, 'Chưa chọn bài')}
                 </span>
               </div>
             </div>

@@ -13,6 +13,7 @@ import {
 import { ScheduleItem, TeacherProfile, PPCTCurriculum, PPCTItem } from '../types';
 import { getWeekDayDate } from '../utils/exportUtils';
 import { inferGradeFromClassName } from '../utils/classUtils';
+import { getTeacherUniqueSubjects } from '../utils/subjectUtils';
 
 interface AddLessonModalProps {
   isOpen: boolean;
@@ -43,10 +44,16 @@ export const AddLessonModal: React.FC<AddLessonModalProps> = ({
   assignedClasses,
   onSave,
 }) => {
+  // Available subjects
+  const availableSubjects = useMemo(() => {
+    return getTeacherUniqueSubjects(teacher?.subjects || [], [], schedules);
+  }, [teacher?.subjects, schedules]);
+
   // Form state
   const [dayOfWeek, setDayOfWeek] = useState<'Thứ 2' | 'Thứ 3' | 'Thứ 4' | 'Thứ 5' | 'Thứ 6'>(initialDayOfWeek);
   const [session, setSession] = useState<'sáng' | 'chiều'>('sáng');
   const [subPeriod, setSubPeriod] = useState<number>(1); // 1..4 for sáng, 1..3 for chiều
+  const [selectedSubject, setSelectedSubject] = useState<string>(availableSubjects[0] || 'Tin học');
   const [selectedClass, setSelectedClass] = useState<string>('4A1');
   const [ppctPeriod, setPpctPeriod] = useState<number>(1);
   const [lessonTitle, setLessonTitle] = useState<string>('');
@@ -81,32 +88,32 @@ export const AddLessonModal: React.FC<AddLessonModalProps> = ({
 
       const defaultCls = classList[0] || '4A1';
       setSelectedClass(defaultCls);
+      setSelectedSubject(availableSubjects[0] || 'Tin học');
       setNotes('');
       setIsLessonPickerOpen(false);
       setToastMessage(null);
     }
-  }, [isOpen, initialDayOfWeek, initialPeriod, classList]);
+  }, [isOpen, initialDayOfWeek, initialPeriod, classList, availableSubjects]);
 
   // Infer Grade & Subject for selected class
   const currentGrade = useMemo(() => inferGradeFromClassName(selectedClass), [selectedClass]);
-  const currentSubject = teacher.subjects[0] || 'Tin học';
 
-  // Find matching PPCT curriculum
+  // Find matching PPCT curriculum specifically for Subject + Grade
   const matchingCurriculum = useMemo(() => {
-    return curriculums.find(c => c.grade === currentGrade && c.subject === currentSubject)
+    return curriculums.find(c => c.grade === currentGrade && c.subject === selectedSubject)
       || curriculums.find(c => c.grade === currentGrade)
       || curriculums[0];
-  }, [curriculums, currentGrade, currentSubject]);
+  }, [curriculums, currentGrade, selectedSubject]);
 
   const ppctItems = matchingCurriculum?.items || [];
 
-  // Calculate suggested next PPCT item for this class
+  // Calculate suggested next PPCT item for this class & subject
   const suggestedPpctItem = useMemo(() => {
     if (!ppctItems || ppctItems.length === 0) return null;
 
     // Find all schedules taught for this class & subject
     const classHistory = schedules.filter(
-      s => s.className === selectedClass && s.subject === currentSubject && s.ppctPeriod
+      s => s.className === selectedClass && s.subject === selectedSubject && s.ppctPeriod
     );
 
     let maxPeriod = 0;
@@ -122,9 +129,9 @@ export const AddLessonModal: React.FC<AddLessonModalProps> = ({
       ppctItems.find(i => i.week === currentWeek) ||
       ppctItems[0]
     );
-  }, [ppctItems, schedules, selectedClass, currentSubject, currentWeek]);
+  }, [ppctItems, schedules, selectedClass, selectedSubject, currentWeek]);
 
-  // Auto-fill PPCT & Lesson Title when class or matching curriculum changes
+  // Auto-fill PPCT & Lesson Title when class, subject or matching curriculum changes
   useEffect(() => {
     if (suggestedPpctItem) {
       setPpctPeriod(suggestedPpctItem.periodNumber);
@@ -133,7 +140,7 @@ export const AddLessonModal: React.FC<AddLessonModalProps> = ({
       setPpctPeriod(currentWeek);
       setLessonTitle(`Bài học tuần ${currentWeek}`);
     }
-  }, [selectedClass, suggestedPpctItem, currentWeek]);
+  }, [selectedClass, selectedSubject, suggestedPpctItem, currentWeek]);
 
   if (!isOpen) return null;
 
@@ -180,7 +187,8 @@ export const AddLessonModal: React.FC<AddLessonModalProps> = ({
       session: session === 'sáng' ? 'Sáng' : 'Chiều',
       period: subPeriod,
       className: selectedClass,
-      subject: currentSubject,
+      subject: selectedSubject,
+      subjectName: selectedSubject,
       grade: currentGrade,
       ppctPeriod: ppctPeriod || undefined,
       lessonTitle: lessonTitle || `Tiết ${ppctPeriod}`,
@@ -259,8 +267,8 @@ export const AddLessonModal: React.FC<AddLessonModalProps> = ({
                 }}
                 className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
               >
-                <option value="sáng">☀ Sáng</option>
-                <option value="chiều">🌤️ Chiều</option>
+                <option value="sáng">Sáng</option>
+                <option value="chiều">Chiều</option>
               </select>
             </div>
 
@@ -292,22 +300,41 @@ export const AddLessonModal: React.FC<AddLessonModalProps> = ({
             </div>
           </div>
 
-          {/* Field 4: Lớp */}
-          <div className="space-y-1">
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-              Lớp
-            </label>
-            <select
-              value={selectedClass}
-              onChange={(e) => setSelectedClass(e.target.value)}
-              className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            >
-              {classList.map((cls) => (
-                <option key={cls} value={cls}>
-                  Lớp {cls}
-                </option>
-              ))}
-            </select>
+          {/* Field 4 & 5: Môn học & Lớp */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                Môn học *
+              </label>
+              <select
+                value={selectedSubject}
+                onChange={(e) => setSelectedSubject(e.target.value)}
+                className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-blue-500/40 rounded-xl text-xs font-extrabold text-blue-700 dark:text-blue-300 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              >
+                {availableSubjects.map((sub) => (
+                  <option key={sub} value={sub}>
+                    {sub}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                Lớp *
+              </label>
+              <select
+                value={selectedClass}
+                onChange={(e) => setSelectedClass(e.target.value)}
+                className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              >
+                {classList.map((cls) => (
+                  <option key={cls} value={cls}>
+                    Lớp {cls}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Field 5 & 6: Tiết PPCT & Tên bài dạy */}
@@ -423,7 +450,7 @@ export const AddLessonModal: React.FC<AddLessonModalProps> = ({
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-2.5">
               <h3 className="font-extrabold text-sm text-slate-900 dark:text-white flex items-center gap-2">
                 <BookOpen className="w-4 h-4 text-blue-600" />
-                <span>CHỌN BÀI DẠY TỪ PPCT ({currentSubject} - {currentGrade})</span>
+                <span>CHỌN BÀI DẠY TỪ PPCT ({selectedSubject} - {currentGrade})</span>
               </h3>
               <button
                 type="button"

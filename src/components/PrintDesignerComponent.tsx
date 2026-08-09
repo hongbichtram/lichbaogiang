@@ -16,6 +16,7 @@ import {
   Sliders
 } from 'lucide-react';
 import { PrintSettings, DEFAULT_PRINT_SETTINGS, TeacherProfile, ScheduleItem } from '../types';
+import { formatLessonDisplayTitle } from '../utils/classUtils';
 
 interface PrintDesignerComponentProps {
   teacher: TeacherProfile;
@@ -31,6 +32,7 @@ const SAMPLE_PREVIEW_ITEMS = [
     dateStr: '08/09/2025',
     period: 'Tiết 2 (Sáng)',
     className: '4A1',
+    subject: 'Tin học',
     ppct: 1,
     lessonTitle: 'Bài 1: Khám phá máy tính và mạng Internet',
     notes: 'Học tại phòng Máy 1',
@@ -40,6 +42,7 @@ const SAMPLE_PREVIEW_ITEMS = [
     dateStr: '08/09/2025',
     period: 'Tiết 3 (Sáng)',
     className: '4A2',
+    subject: 'Tin học',
     ppct: 1,
     lessonTitle: 'Bài 1: Khám phá máy tính và mạng Internet',
     notes: '',
@@ -49,6 +52,7 @@ const SAMPLE_PREVIEW_ITEMS = [
     dateStr: '09/09/2025',
     period: 'Tiết 1 (Sáng)',
     className: '3A1',
+    subject: 'Tin học',
     ppct: 1,
     lessonTitle: 'Bài 1: Thông tin và xử lý thông tin xung quanh em',
     notes: 'Chuẩn bị tranh ảnh',
@@ -58,6 +62,7 @@ const SAMPLE_PREVIEW_ITEMS = [
     dateStr: '10/09/2025',
     period: 'Tiết 1 (Chiều)',
     className: '5A1',
+    subject: 'Tin học',
     ppct: 1,
     lessonTitle: 'Bài 1: Thu thập và tổ chức dữ liệu thông tin',
     notes: 'Thực hành nhóm',
@@ -841,7 +846,7 @@ export const PrintDesignerComponent: React.FC<PrintDesignerComponentProps> = ({
                             style={{ fontWeight: form.isLessonTitleBold ? 'bold' : 'normal' }}
                             className="border border-slate-400 p-2 align-middle text-left"
                           >
-                            {item.lessonTitle}
+                            {formatLessonDisplayTitle(item.lessonTitle, item.subject)}
                           </td>
                         )}
                         {form.showColNotes && <td className="border border-slate-400 p-2 text-slate-600 align-middle text-left">{item.notes}</td>}

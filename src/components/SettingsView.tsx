@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Settings as SettingsIcon, 
   User, 
@@ -21,6 +21,8 @@ import {
 import { TeacherProfile, ClassTimetableRule, PrintSettings, DEFAULT_PRINT_SETTINGS } from '../types';
 import { ClassSelectDropdown } from './ClassSelectDropdown';
 import { PrintDesignerComponent } from './PrintDesignerComponent';
+import { PRIMARY_SUBJECTS } from '../data/primaryCurriculums';
+import { getSubjectColorStyle } from '../utils/subjectUtils';
 import { 
   inferGradeFromClassName, 
   normalizeClassName, 
@@ -59,9 +61,87 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [profileForm, setProfileForm] = useState<TeacherProfile>({ ...teacher });
   const [rules, setRules] = useState<ClassTimetableRule[]>([...timetableRules]);
   const [addClassInput, setAddClassInput] = useState('');
+  const [addSubjectInput, setAddSubjectInput] = useState('');
   const [selectedSubject, setSelectedSubject] = useState<string>(
     teacher.subjects[0] || 'Tin học'
   );
+
+  // Sync profileForm with teacher prop when teacher changes (e.g. from Firestore load)
+  useEffect(() => {
+    setProfileForm({ ...teacher });
+    console.log('SETTINGS SUBJECT LOAD', {
+      UID: teacher.uid || 'no-uid',
+      'ASSIGNED SUBJECTS': teacher.subjects || [],
+    });
+  }, [teacher]);
+
+  const currentSubjects = profileForm.subjects || ['Tin học'];
+
+  // Handlers for MÔN HỌC ĐƯỢC PHÂN CÔNG
+  const handleToggleSubject = (subjectName: string) => {
+    const before = [...currentSubjects];
+    let after: string[];
+    if (before.includes(subjectName)) {
+      if (before.length <= 1) {
+        alert('Phải giữ tối thiểu 1 môn học được phân công!');
+        return;
+      }
+      after = before.filter(s => s !== subjectName);
+    } else {
+      after = [...before, subjectName];
+    }
+
+    console.log('SETTINGS SUBJECT TOGGLE', {
+      SUBJECT: subjectName,
+      BEFORE: before,
+      AFTER: after,
+    });
+
+    const updatedProfile = { ...profileForm, subjects: after };
+    setProfileForm(updatedProfile);
+    onSaveProfile(updatedProfile);
+  };
+
+  const handleAddCustomSubject = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = addSubjectInput.trim();
+    if (!trimmed) return;
+
+    const before = [...currentSubjects];
+    if (before.some(s => s.toLowerCase() === trimmed.toLowerCase())) {
+      alert(`Môn "${trimmed}" đã có trong danh sách phân công!`);
+      return;
+    }
+
+    const after = [...before, trimmed];
+    console.log('SETTINGS SUBJECT TOGGLE', {
+      SUBJECT: trimmed,
+      BEFORE: before,
+      AFTER: after,
+    });
+
+    const updatedProfile = { ...profileForm, subjects: after };
+    setProfileForm(updatedProfile);
+    onSaveProfile(updatedProfile);
+    setAddSubjectInput('');
+  };
+
+  const handleRemoveSubject = (subjectToRemove: string) => {
+    const before = [...currentSubjects];
+    if (before.length <= 1) {
+      alert('Phải giữ tối thiểu 1 môn học được phân công!');
+      return;
+    }
+    const after = before.filter(s => s !== subjectToRemove);
+    console.log('SETTINGS SUBJECT TOGGLE', {
+      SUBJECT: subjectToRemove,
+      BEFORE: before,
+      AFTER: after,
+    });
+    const updatedProfile = { ...profileForm, subjects: after };
+    setProfileForm(updatedProfile);
+    onSaveProfile(updatedProfile);
+  };
 
 
   // Quick rule form state
@@ -423,6 +503,130 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
               ))
             )}
+          </div>
+
+          {/* SECTION: MÔN HỌC ĐƯỢC PHÂN CÔNG */}
+          <div className="pt-6 border-t border-slate-200 dark:border-slate-700 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+                <BookOpen className="w-5 h-5 text-emerald-500" />
+                <span>MÔN HỌC ĐƯỢC PHÂN CÔNG</span>
+              </h3>
+              <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-lg">
+                {currentSubjects.length} Môn học
+              </span>
+            </div>
+
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Quản lý chính xác các môn học mà bạn được phân công giảng dạy (Ví dụ: Tin học + Công nghệ, hoặc Toán + Tin học).
+              Danh sách môn này sẽ được dùng thống nhất trong Thời khóa biểu, Phân phối chương trình (PPCT) và Lịch báo giảng.
+            </p>
+
+            {/* Checkbox multi-select list for standard subjects */}
+            <div className="space-y-2">
+              <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                Tích chọn môn học đảm nhận:
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                {PRIMARY_SUBJECTS.map((sub) => {
+                  const isSelected = currentSubjects.includes(sub);
+                  const style = getSubjectColorStyle(sub);
+                  return (
+                    <div
+                      key={sub}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => handleToggleSubject(sub)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          handleToggleSubject(sub);
+                        }
+                      }}
+                      className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center space-x-2 text-xs font-bold ${
+                        isSelected
+                          ? `${style.bgLight} ${style.borderClass} ${style.textClass} shadow-2xs`
+                          : 'bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => {}}
+                        className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 pointer-events-none"
+                      />
+                      <span className="text-sm">{style.icon}</span>
+                      <span className="truncate">{sub}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Form add custom subject */}
+            <form onSubmit={handleAddCustomSubject} className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-700/60">
+              <input
+                type="text"
+                value={addSubjectInput}
+                onChange={(e) => setAddSubjectInput(e.target.value)}
+                placeholder="Thêm môn học khác (ví dụ: Kỹ năng sống, Ngoại ngữ 2)..."
+                className="flex-1 p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white placeholder:font-normal"
+              />
+              <button
+                type="submit"
+                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-500/20 shrink-0 flex items-center gap-1.5 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Thêm môn</span>
+              </button>
+            </form>
+
+            {/* Currently assigned subjects badges list */}
+            <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-700/60">
+              <div className="text-xs font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                Danh sách môn học đang phân công:
+              </div>
+              <div className="flex flex-wrap gap-2 items-center">
+                {currentSubjects.map((sub) => {
+                  const style = getSubjectColorStyle(sub);
+                  return (
+                    <div
+                      key={sub}
+                      className={`px-3 py-1.5 rounded-xl border flex items-center gap-2 text-xs font-extrabold transition-all shadow-2xs ${style.badgeClass}`}
+                    >
+                      <span className="text-sm">{style.icon}</span>
+                      <span>{sub}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSubject(sub)}
+                        title={`Xóa môn ${sub}`}
+                        className="p-0.5 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-md transition-colors ml-1"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Explicit Save Button for Môn được phân công */}
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between">
+              <p className="text-[11px] text-slate-400 italic">
+                * Dữ liệu môn học sẽ được lưu vào tài khoản giáo viên theo mã định danh Firebase UID.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  onSaveProfile({ ...profileForm, subjects: currentSubjects });
+                  alert(`✅ Đã lưu danh sách môn học được phân công (${currentSubjects.join(', ')}) thành công vào tài khoản!`);
+                }}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold shadow-md shadow-emerald-500/20 transition-all flex items-center gap-1.5 shrink-0"
+              >
+                <Save className="w-4 h-4" />
+                <span>Lưu thay đổi môn học</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
