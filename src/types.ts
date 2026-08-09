@@ -1,5 +1,18 @@
 export type LessonStatus = 'completed' | 'preparing' | 'unprepared';
 
+export type UserRole = 'admin' | 'teacher';
+export type UserStatus = 'active' | 'disabled';
+
+export interface AppUser {
+  uid: string;
+  displayName: string;
+  email: string;
+  role: UserRole;
+  status: UserStatus;
+  createdAt?: string | any;
+  updatedAt?: string | any;
+}
+
 export interface TeacherProfile {
   uid: string;
   fullName: string;

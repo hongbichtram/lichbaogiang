@@ -14,8 +14,9 @@ import {
   getDoc,
   serverTimestamp
 } from 'firebase/firestore';
-import { TeacherProfile, PPCTCurriculum, ScheduleItem, ClassTimetableRule } from '../types';
+import { TeacherProfile, PPCTCurriculum, ScheduleItem, ClassTimetableRule, AppUser, UserRole, UserStatus } from '../types';
 import { CustomWeekDatesMap } from '../utils/dateWeekUtils';
+import { ADMIN_UID, isConfiguredAdminUid } from '../config/adminConfig';
 
 declare global {
   interface ImportMetaEnv {
@@ -84,6 +85,125 @@ export const logoutUser = async () => {
   } catch (error) {
     console.error("Sign out error:", error);
   }
+};
+
+// --- USER ROLE & PERMISSION HELPERS ---
+
+export function isAdmin(role?: string | null): boolean {
+  return role === 'admin';
+}
+
+export function isTeacher(role?: string | null): boolean {
+  return role === 'teacher';
+}
+
+export function isActiveUser(status?: string | null): boolean {
+  return status === 'active';
+}
+
+/**
+ * Fetch user document from users/{uid}
+ */
+export const fetchUserDocument = async (uid: string): Promise<AppUser | null> => {
+  if (!uid) return null;
+  try {
+    const userRef = doc(db, 'users', uid);
+    const snap = await getDoc(userRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      return {
+        uid,
+        displayName: data.displayName || '',
+        email: data.email || '',
+        role: (data.role as UserRole) || 'teacher',
+        status: (data.status as UserStatus) || 'active',
+        createdAt: data.createdAt,
+        updatedAt: data.updatedAt,
+      };
+    }
+  } catch (err) {
+    console.error('Error fetching user document:', err);
+  }
+  return null;
+};
+
+/**
+ * Sync user document upon successful authentication.
+ * Document path: users/{uid}
+ * If exists: read role and status.
+ * If not exists: default role = "teacher", status = "active".
+ * If user.uid matches ADMIN_UID: ensure role = "admin".
+ */
+export const syncUserRoleOnLogin = async (user: User): Promise<AppUser> => {
+  const uid = user.uid;
+  const userRef = doc(db, 'users', uid);
+  const isAdminByConfig = isConfiguredAdminUid(uid);
+
+  let appUser: AppUser;
+
+  try {
+    const snap = await getDoc(userRef);
+
+    if (snap.exists()) {
+      const data = snap.data();
+      let role: UserRole = (data.role as UserRole) || 'teacher';
+      let status: UserStatus = (data.status as UserStatus) || 'active';
+
+      // If configured as ADMIN_UID, elevate/sync role to admin if not already
+      if (isAdminByConfig && role !== 'admin') {
+        role = 'admin';
+        await setDoc(userRef, { role: 'admin', updatedAt: serverTimestamp() }, { merge: true });
+      }
+
+      appUser = {
+        uid,
+        displayName: data.displayName || user.displayName || '',
+        email: data.email || user.email || '',
+        role,
+        status,
+        createdAt: data.createdAt,
+        updatedAt: data.updatedAt,
+      };
+    } else {
+      // Document does not exist: create default user document
+      const defaultRole: UserRole = isAdminByConfig ? 'admin' : 'teacher';
+      const defaultStatus: UserStatus = 'active';
+
+      const newUserDoc = {
+        displayName: user.displayName || '',
+        email: user.email || '',
+        role: defaultRole,
+        status: defaultStatus,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      await setDoc(userRef, newUserDoc);
+
+      appUser = {
+        uid,
+        displayName: newUserDoc.displayName,
+        email: newUserDoc.email,
+        role: defaultRole,
+        status: defaultStatus,
+      };
+    }
+  } catch (err) {
+    console.error('Error syncing user document on login:', err);
+    // Fallback in-memory state if Firestore write fails
+    appUser = {
+      uid,
+      displayName: user.displayName || '',
+      email: user.email || '',
+      role: isAdminByConfig ? 'admin' : 'teacher',
+      status: 'active',
+    };
+  }
+
+  // Print required debug log (Requirement 7)
+  console.log(`AUTH USER\nUID: ${appUser.uid}\nEMAIL: ${appUser.email}\nROLE: ${appUser.role}\nSTATUS: ${appUser.status}`);
+
+  return appUser;
 };
 
 // --- FIRESTORE DATA SYNC HELPERS ---

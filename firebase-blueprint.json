@@ -1,5 +1,19 @@
 {
   "entities": {
+    "users": {
+      "title": "User Account & Role",
+      "description": "User profile, role and status for authorization",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "displayName": { "type": "string", "description": "Display name" },
+        "email": { "type": "string", "description": "User email address" },
+        "role": { "type": "string", "enum": ["admin", "teacher"], "description": "User role: admin or teacher" },
+        "status": { "type": "string", "enum": ["active", "disabled"], "description": "Account status: active or disabled" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["displayName", "email", "role", "status"]
+    },
     "teachers": {
       "title": "Teacher Profiles",
       "description": "User profile information for primary school teachers",
@@ -68,6 +82,24 @@
         "updatedAt": { "type": "string" }
       },
       "required": ["teacherId", "weekNumber", "dayOfWeek", "period", "className"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "users",
+      "description": "User role authorization and status"
+    },
+    "/teachers/{teacherId}": {
+      "schema": "teachers",
+      "description": "Teacher profile settings"
+    },
+    "/curriculums/{curriculumId}": {
+      "schema": "curriculums",
+      "description": "Phân phối chương trình curriculums"
+    },
+    "/weeklySchedules/{scheduleId}": {
+      "schema": "weeklySchedules",
+      "description": "Weekly teaching schedule items"
     }
   }
 }

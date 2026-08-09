@@ -12,6 +12,24 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    function isAppAdmin() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // User Accounts collection (users/{userId})
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAppAdmin());
+      allow create: if isAuthenticated() && request.auth.uid == userId && 
+        (request.resource.data.role == 'teacher' || isAppAdmin());
+      allow update: if isAuthenticated() && (
+        isAppAdmin() || 
+        (request.auth.uid == userId && request.resource.data.role == resource.data.role)
+      );
+      allow delete: if isAppAdmin();
+    }
+
     // Teacher Profiles collection
     match /teachers/{teacherId} {
       allow read, write: if isAuthenticated() && (request.auth.uid == teacherId || resource == null);

@@ -25,7 +25,8 @@ import {
   saveCustomWeekDatesToFirestore,
   fetchCustomWeekDatesFromFirestore,
   savePrintSettingsToFirestore,
-  fetchPrintSettingsFromFirestore
+  fetchPrintSettingsFromFirestore,
+  syncUserRoleOnLogin
 } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -275,11 +276,13 @@ export default function App() {
   // Auth Listener & Firestore Data Sync
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      console.log('AUTH USER', user ? { uid: user.uid, email: user.email, name: user.displayName } : 'No active user session');
       setAuthUser(user);
       if (user) {
         setAutoSaveStatus('saving');
         try {
+          // Sync user role and status in users/{uid} collection
+          await syncUserRoleOnLogin(user);
+
           // Fetch existing user data from Firestore
           const [fsTeacherData, fsPPCTs, fsSchedules, fsCustomDates, fsPrintSettings] = await Promise.all([
             fetchTeacherProfileFromFirestore(user.uid),
