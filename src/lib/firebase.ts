@@ -12,9 +12,26 @@ import {
   doc, 
   setDoc, 
   getDoc,
+  getDocs,
+  collection,
+  deleteDoc,
   serverTimestamp
 } from 'firebase/firestore';
-import { TeacherProfile, PPCTCurriculum, ScheduleItem, ClassTimetableRule, AppUser, UserRole, UserStatus } from '../types';
+import { 
+  TeacherProfile, 
+  PPCTCurriculum, 
+  ScheduleItem, 
+  ClassTimetableRule, 
+  AppUser, 
+  UserRole, 
+  UserStatus,
+  SharedCurriculum,
+  TeacherCurriculumData,
+  TeacherCurriculumSelection,
+  TeacherLessonProgress,
+  TeacherCustomLesson,
+  TeacherCurriculumNote
+} from '../types';
 import { CustomWeekDatesMap } from '../utils/dateWeekUtils';
 import { ADMIN_UID, isConfiguredAdminUid } from '../config/adminConfig';
 
@@ -408,6 +425,252 @@ export const fetchPrintSettingsFromFirestore = async (uid: string): Promise<any 
     console.error('FIRESTORE ERROR', { collection: 'printSettings', uid, action: 'read', error: err });
   }
   return null;
+};
+
+
+// --- SHARED CURRICULUM LIBRARY HELPERS (curriculumLibrary/{curriculumId}) ---
+
+export const saveSharedCurriculum = async (curriculum: SharedCurriculum): Promise<void> => {
+  const currentUser = auth.currentUser;
+  const updatedBy = currentUser?.uid || curriculum.updatedBy || 'admin';
+  const id = curriculum.id;
+
+  if (!id) {
+    console.error('FIRESTORE ERROR: curriculumId is required');
+    return;
+  }
+
+  try {
+    const ref = doc(db, 'curriculumLibrary', id);
+    const dataToSave = {
+      ...curriculum,
+      updatedBy,
+      updatedAt: new Date().toISOString(),
+      createdAt: curriculum.createdAt || new Date().toISOString()
+    };
+    await setDoc(ref, dataToSave, { merge: true });
+    console.log('FIRESTORE SAVE SUCCESS', { collection: 'curriculumLibrary', id });
+  } catch (err) {
+    console.error('FIRESTORE ERROR', { collection: 'curriculumLibrary', id, action: 'write', error: err });
+    throw err;
+  }
+};
+
+export const fetchSharedCurriculums = async (): Promise<SharedCurriculum[]> => {
+  try {
+    const ref = collection(db, 'curriculumLibrary');
+    const snap = await getDocs(ref);
+    const items: SharedCurriculum[] = [];
+    snap.forEach((docSnap) => {
+      items.push({
+        id: docSnap.id,
+        ...docSnap.data()
+      } as SharedCurriculum);
+    });
+    console.log('FIRESTORE LOAD SUCCESS', { collection: 'curriculumLibrary', count: items.length });
+    return items;
+  } catch (err) {
+    console.error('FIRESTORE ERROR', { collection: 'curriculumLibrary', action: 'read', error: err });
+    return [];
+  }
+};
+
+export const fetchSharedCurriculumById = async (curriculumId: string): Promise<SharedCurriculum | null> => {
+  if (!curriculumId) return null;
+  try {
+    const ref = doc(db, 'curriculumLibrary', curriculumId);
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      return { id: snap.id, ...snap.data() } as SharedCurriculum;
+    }
+  } catch (err) {
+    console.error('FIRESTORE ERROR', { collection: 'curriculumLibrary', id: curriculumId, action: 'read', error: err });
+  }
+  return null;
+};
+
+export const updateSharedCurriculum = async (curriculumId: string, data: Partial<SharedCurriculum>): Promise<void> => {
+  if (!curriculumId) return;
+  const currentUser = auth.currentUser;
+  try {
+    const ref = doc(db, 'curriculumLibrary', curriculumId);
+    await setDoc(ref, {
+      ...data,
+      updatedBy: currentUser?.uid || 'admin',
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+    console.log('FIRESTORE UPDATE SUCCESS', { collection: 'curriculumLibrary', id: curriculumId });
+  } catch (err) {
+    console.error('FIRESTORE ERROR', { collection: 'curriculumLibrary', id: curriculumId, action: 'update', error: err });
+    throw err;
+  }
+};
+
+export const deleteSharedCurriculum = async (curriculumId: string): Promise<void> => {
+  if (!curriculumId) return;
+  try {
+    const ref = doc(db, 'curriculumLibrary', curriculumId);
+    await deleteDoc(ref);
+    console.log('FIRESTORE DELETE SUCCESS', { collection: 'curriculumLibrary', id: curriculumId });
+  } catch (err) {
+    console.error('FIRESTORE ERROR', { collection: 'curriculumLibrary', id: curriculumId, action: 'delete', error: err });
+    throw err;
+  }
+};
+
+
+// --- TEACHER-SPECIFIC CURRICULUM DATA HELPERS (teacherCurriculumData/{uid}) ---
+
+export const fetchTeacherCurriculumData = async (uid: string): Promise<TeacherCurriculumData | null> => {
+  if (!uid) return null;
+  try {
+    const ref = doc(db, 'teacherCurriculumData', uid);
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      const data = snap.data();
+      return {
+        uid,
+        curriculumSelections: data.curriculumSelections || [],
+        lessonProgress: data.lessonProgress || [],
+        customLessons: data.customLessons || [],
+        notes: data.notes || [],
+        updatedAt: data.updatedAt
+      };
+    }
+  } catch (err) {
+    console.error('FIRESTORE ERROR', { collection: 'teacherCurriculumData', uid, action: 'read', error: err });
+  }
+  return null;
+};
+
+export const saveTeacherCurriculumData = async (uid: string, data: Partial<TeacherCurriculumData>): Promise<void> => {
+  if (!uid) return;
+  try {
+    const ref = doc(db, 'teacherCurriculumData', uid);
+    const payload = {
+      ...data,
+      uid,
+      updatedAt: new Date().toISOString()
+    };
+    await setDoc(ref, payload, { merge: true });
+    console.log('FIRESTORE SAVE SUCCESS', { collection: 'teacherCurriculumData', uid });
+  } catch (err) {
+    console.error('FIRESTORE ERROR', { collection: 'teacherCurriculumData', uid, action: 'write', error: err });
+    throw err;
+  }
+};
+
+export const selectCurriculumForTeacher = async (uid: string, curriculumId: string): Promise<void> => {
+  if (!uid || !curriculumId) return;
+  const current = await fetchTeacherCurriculumData(uid);
+  const selections = current?.curriculumSelections || [];
+  const existingIdx = selections.findIndex(s => s.curriculumId === curriculumId);
+  const now = new Date().toISOString();
+
+  let updatedSelections = [...selections];
+  if (existingIdx >= 0) {
+    updatedSelections[existingIdx] = { curriculumId, selectedAt: now };
+  } else {
+    updatedSelections.push({ curriculumId, selectedAt: now });
+  }
+
+  await saveTeacherCurriculumData(uid, {
+    curriculumSelections: updatedSelections
+  });
+};
+
+export const saveLessonProgress = async (
+  uid: string,
+  curriculumId: string,
+  lessonId: string,
+  status: string,
+  taughtAt?: string | null
+): Promise<void> => {
+  if (!uid || !curriculumId || !lessonId) return;
+  const current = await fetchTeacherCurriculumData(uid);
+  const progressList = current?.lessonProgress || [];
+  const existingIdx = progressList.findIndex(p => p.curriculumId === curriculumId && p.lessonId === lessonId);
+
+  const newProgressItem: TeacherLessonProgress = {
+    curriculumId,
+    lessonId,
+    status,
+    taughtAt: taughtAt || new Date().toISOString()
+  };
+
+  let updatedProgress = [...progressList];
+  if (existingIdx >= 0) {
+    updatedProgress[existingIdx] = newProgressItem;
+  } else {
+    updatedProgress.push(newProgressItem);
+  }
+
+  await saveTeacherCurriculumData(uid, {
+    lessonProgress: updatedProgress
+  });
+};
+
+export const saveTeacherCustomLesson = async (
+  uid: string,
+  customLessonData: TeacherCustomLesson
+): Promise<void> => {
+  if (!uid || !customLessonData.curriculumId) return;
+  const current = await fetchTeacherCurriculumData(uid);
+  const customLessons = current?.customLessons || [];
+  const now = new Date().toISOString();
+
+  const existingIdx = customLessons.findIndex(
+    cl => cl.curriculumId === customLessonData.curriculumId && 
+          cl.sourceLessonId === customLessonData.sourceLessonId &&
+          cl.title === customLessonData.title
+  );
+
+  let updatedCustomLessons = [...customLessons];
+  if (existingIdx >= 0) {
+    updatedCustomLessons[existingIdx] = {
+      ...customLessonData,
+      updatedAt: now
+    };
+  } else {
+    updatedCustomLessons.push({
+      ...customLessonData,
+      createdAt: now,
+      updatedAt: now
+    });
+  }
+
+  await saveTeacherCurriculumData(uid, {
+    customLessons: updatedCustomLessons
+  });
+};
+
+export const saveTeacherCurriculumNote = async (
+  uid: string,
+  curriculumId: string,
+  lessonId: string,
+  note: string
+): Promise<void> => {
+  if (!uid || !curriculumId || !lessonId) return;
+  const current = await fetchTeacherCurriculumData(uid);
+  const notesList = current?.notes || [];
+  const existingIdx = notesList.findIndex(n => n.curriculumId === curriculumId && n.lessonId === lessonId);
+
+  const newNoteItem: TeacherCurriculumNote = {
+    curriculumId,
+    lessonId,
+    note
+  };
+
+  let updatedNotes = [...notesList];
+  if (existingIdx >= 0) {
+    updatedNotes[existingIdx] = newNoteItem;
+  } else {
+    updatedNotes.push(newNoteItem);
+  }
+
+  await saveTeacherCurriculumData(uid, {
+    notes: updatedNotes
+  });
 };
 
 

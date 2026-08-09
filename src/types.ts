@@ -58,6 +58,8 @@ export interface ActivityStep {
 export interface ScheduleItem {
   id: string;
   teacherId: string;
+  curriculumId?: string;
+  lessonId?: string;
   academicYear: string;
   semester: string;
   weekNumber: number;
@@ -84,6 +86,58 @@ export interface ScheduleItem {
   notes?: string; // Ghi chú
   date?: string; // YYYY-MM-DD
   updatedAt: string;
+}
+
+// --- SHARED CURRICULUM & TEACHER-SPECIFIC DATA TYPES ---
+
+export interface SharedCurriculum {
+  id: string; // e.g. "2026-2027_TinHoc_Khoi4"
+  academicYear: string;
+  subject: string;
+  grade: string;
+  name: string;
+  items: PPCTItem[];
+  version: number;
+  createdAt?: string | any;
+  updatedAt?: string | any;
+  updatedBy: string;
+}
+
+export interface TeacherCurriculumSelection {
+  curriculumId: string;
+  selectedAt: string | any;
+}
+
+export interface TeacherLessonProgress {
+  curriculumId: string;
+  lessonId: string;
+  status: string;
+  taughtAt?: string | any | null;
+}
+
+export interface TeacherCustomLesson {
+  curriculumId: string;
+  sourceLessonId: string | null;
+  title: string;
+  content: string;
+  note: string;
+  createdAt?: string | any;
+  updatedAt?: string | any;
+}
+
+export interface TeacherCurriculumNote {
+  curriculumId: string;
+  lessonId: string;
+  note: string;
+}
+
+export interface TeacherCurriculumData {
+  uid: string;
+  curriculumSelections: TeacherCurriculumSelection[];
+  lessonProgress: TeacherLessonProgress[];
+  customLessons: TeacherCustomLesson[];
+  notes: TeacherCurriculumNote[];
+  updatedAt?: string | any;
 }
 
 export interface ClassTimetableRule {

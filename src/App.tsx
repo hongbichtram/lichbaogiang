@@ -10,7 +10,7 @@ import { TimetableView } from './components/TimetableView';
 import { Footer } from './components/Footer';
 import { RescheduleModal } from './components/RescheduleModal';
 import { LessonDrawer } from './components/LessonDrawer';
-import { TeacherProfile, ScheduleItem, PPCTCurriculum, ClassTimetableRule, LessonStatus, PrintSettings, DEFAULT_PRINT_SETTINGS } from './types';
+import { TeacherProfile, ScheduleItem, PPCTCurriculum, SharedCurriculum, ClassTimetableRule, LessonStatus, PrintSettings, DEFAULT_PRINT_SETTINGS } from './types';
 import { PREDEFINED_PPCTS } from './data/primaryCurriculums';
 import { 
   auth, 
@@ -522,7 +522,7 @@ export default function App() {
     }
   };
 
-  const handleSyncPPCTToSchedule = (curriculum: PPCTCurriculum) => {
+  const handleSyncPPCTToSchedule = (curriculum: PPCTCurriculum | SharedCurriculum) => {
     // Map items in schedule matching grade and subject to PPCT lessons
     const updated = schedules.map(s => {
       if (s.grade === curriculum.grade && s.subject === curriculum.subject) {
@@ -530,6 +530,8 @@ export default function App() {
         if (matchingItem) {
           return {
             ...s,
+            curriculumId: curriculum.id,
+            lessonId: matchingItem.id,
             lessonTitle: matchingItem.title,
             topic: matchingItem.topic,
             ppctPeriod: matchingItem.periodNumber,
@@ -558,6 +560,8 @@ export default function App() {
         newItems.push({
           id: `gen-${ruleIdPart}-${dayClean}-p${rule.period}-w${w}`,
           teacherId: teacher.uid,
+          curriculumId: curr?.id,
+          lessonId: ppctItem?.id,
           academicYear: teacher.academicYear,
           semester: teacher.semester,
           weekNumber: w,
