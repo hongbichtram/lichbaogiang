@@ -7,6 +7,7 @@ export interface AppUser {
   uid: string;
   displayName: string;
   email: string;
+  teacherCode?: string;
   role: UserRole;
   status: UserStatus;
   createdAt?: string | any;
@@ -19,8 +20,11 @@ export interface SystemConfig {
   schoolName: string;
   logoUrl?: string;
   defaultAcademicYear: string;
+  supportEmail?: string;
+  supportPhone?: string;
   contactEmail?: string;
   contactPhone?: string;
+  systemAnnouncement?: string;
   announcement?: string;
   updatedAt?: string;
   updatedBy?: string;
@@ -31,8 +35,10 @@ export interface SystemLog {
   uid: string;
   performerName?: string;
   performerEmail?: string;
-  action: 'login' | 'logout' | 'lock_user' | 'unlock_user' | 'change_role' | 'update_system_config';
+  action: 'login' | 'logout' | 'lock_user' | 'unlock_user' | 'change_role' | 'update_system_config' | 'UPDATE_SYSTEM_CONFIG' | 'CREATE_TEACHER' | 'UPDATE_TEACHER' | 'DISABLE_TEACHER' | 'ENABLE_TEACHER' | 'CHANGE_ROLE';
   actionLabel?: string;
+  adminUid?: string;
+  targetUid?: string;
   targetUserId?: string;
   targetUserName?: string;
   targetUserEmail?: string;
@@ -43,6 +49,8 @@ export interface SystemLog {
 
 export interface TeacherUsageStats {
   teacherUid: string;
+  teacherCode?: string;
+  academicYearInUse?: string;
   timetableVersionsCount: number;
   academicWeeksConfiguredCount: number;
   scheduleItemsCount: number;

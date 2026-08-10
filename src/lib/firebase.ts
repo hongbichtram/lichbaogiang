@@ -65,7 +65,7 @@ const firebaseConfigData = configModule?.default || configModule || {
   appId: "1:481171704495:web:c7f969153f0337a7d9225a"
 };
 
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || firebaseConfigData.apiKey || "AIzaSyC1SHw71JjSNFK80nEaGbFj4MA6zPwsgCE",
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfigData.authDomain || "lichbaogiang-20939.firebaseapp.com",
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || firebaseConfigData.projectId || "lichbaogiang-20939",

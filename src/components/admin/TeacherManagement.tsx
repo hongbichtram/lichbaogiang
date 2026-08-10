@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AppUser, UserRole, UserStatus } from '../../types';
 import { getAllUsers, toggleUserStatus, updateUserRole } from '../../services/adminService';
 import { TeacherDetailModal } from './TeacherDetailModal';
+import { CreateTeacherModal } from './CreateTeacherModal';
 import { 
   Users, 
   Search, 
@@ -10,13 +11,14 @@ import {
   Lock, 
   Unlock, 
   Shield, 
-  UserCheck, 
   Eye, 
   Loader2, 
   AlertTriangle,
   CheckCircle2,
   Ban,
-  UserX
+  UserX,
+  UserPlus,
+  AlertCircle
 } from 'lucide-react';
 
 interface TeacherManagementProps {
@@ -31,10 +33,12 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({ currentUse
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'teacher'>('all');
 
   // Modal states
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedUserForDetail, setSelectedUserForDetail] = useState<AppUser | null>(null);
   const [userToToggleStatus, setUserToToggleStatus] = useState<AppUser | null>(null);
   const [userToChangeRole, setUserToChangeRole] = useState<{ user: AppUser; newRole: UserRole } | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const loadUsers = async () => {
     setLoading(true);
@@ -57,7 +61,8 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({ currentUse
     const query = searchQuery.toLowerCase().trim();
     const matchesSearch = !query || 
       (user.displayName && user.displayName.toLowerCase().includes(query)) ||
-      (user.email && user.email.toLowerCase().includes(query));
+      (user.email && user.email.toLowerCase().includes(query)) ||
+      (user.teacherCode && user.teacherCode.toLowerCase().includes(query));
 
     const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
     const matchesRole = roleFilter === 'all' || user.role === roleFilter;
@@ -69,37 +74,44 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({ currentUse
   const handleConfirmToggleStatus = async () => {
     if (!userToToggleStatus) return;
     setIsProcessing(true);
+    setActionError(null);
+
     const newStatus: UserStatus = userToToggleStatus.status === 'active' ? 'disabled' : 'active';
     
-    const success = await toggleUserStatus(userToToggleStatus, newStatus, {
+    const res = await toggleUserStatus(userToToggleStatus, newStatus, {
       uid: currentUser?.uid || 'admin',
       displayName: currentUser?.displayName || 'Admin',
       email: currentUser?.email || ''
     });
 
-    if (success) {
+    if (res.success) {
       setUsers(prev => prev.map(u => u.uid === userToToggleStatus.uid ? { ...u, status: newStatus } : u));
+      setUserToToggleStatus(null);
+    } else {
+      setActionError(res.message || 'Không thể thay đổi trạng thái tài khoản.');
     }
     setIsProcessing(false);
-    setUserToToggleStatus(null);
   };
 
   // Handle Confirm Role Change
   const handleConfirmChangeRole = async () => {
     if (!userToChangeRole) return;
     setIsProcessing(true);
+    setActionError(null);
 
-    const success = await updateUserRole(userToChangeRole.user, userToChangeRole.newRole, {
+    const res = await updateUserRole(userToChangeRole.user, userToChangeRole.newRole, {
       uid: currentUser?.uid || 'admin',
       displayName: currentUser?.displayName || 'Admin',
       email: currentUser?.email || ''
     });
 
-    if (success) {
+    if (res.success) {
       setUsers(prev => prev.map(u => u.uid === userToChangeRole.user.uid ? { ...u, role: userToChangeRole.newRole } : u));
+      setUserToChangeRole(null);
+    } else {
+      setActionError(res.message || 'Không thể thay đổi vai trò tài khoản.');
     }
     setIsProcessing(false);
-    setUserToChangeRole(null);
   };
 
   const formatDate = (isoStr?: string) => {
@@ -131,15 +143,41 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({ currentUse
           </div>
         </div>
 
-        <button
-          onClick={loadUsers}
-          disabled={loading}
-          className="flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 transition-all self-start sm:self-auto disabled:opacity-50"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-indigo-400' : ''}`} />
-          <span>Làm mới danh sách</span>
-        </button>
+        <div className="flex items-center space-x-2.5 self-start sm:self-auto">
+          <button
+            onClick={loadUsers}
+            disabled={loading}
+            className="flex items-center space-x-2 px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 transition-all disabled:opacity-50 cursor-pointer"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-indigo-400' : ''}`} />
+            <span className="hidden sm:inline">Làm mới</span>
+          </button>
+
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-all shadow-lg shadow-indigo-600/30 cursor-pointer"
+          >
+            <UserPlus className="w-4 h-4" />
+            <span>+ Thêm giáo viên</span>
+          </button>
+        </div>
       </div>
+
+      {/* Global Action Error Alert */}
+      {actionError && (
+        <div className="p-4 bg-rose-500/10 border border-rose-500/40 rounded-2xl text-rose-300 text-xs flex items-center justify-between space-x-3 shadow-lg">
+          <div className="flex items-center space-x-2">
+            <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
+            <span className="font-semibold">{actionError}</span>
+          </div>
+          <button 
+            onClick={() => setActionError(null)}
+            className="px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 rounded-lg text-[11px] font-bold"
+          >
+            Đóng
+          </button>
+        </div>
+      )}
 
       {/* Filter and Search Bar */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
@@ -151,7 +189,7 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({ currentUse
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Tìm theo tên giáo viên, email..."
+            placeholder="Tìm theo tên giáo viên, email, mã GV..."
             className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-xl text-xs text-white placeholder-slate-500 outline-hidden transition-all"
           />
         </div>
@@ -200,7 +238,7 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({ currentUse
             </div>
             <h4 className="text-sm font-bold text-slate-300">Không tìm thấy tài khoản nào</h4>
             <p className="text-xs text-slate-500 max-w-sm">
-              Thử thay đổi từ khóa tìm kiếm hoặc bỏ bộ lọc để xem đầy đủ danh sách.
+              Thử thay đổi từ khóa tìm kiếm hoặc bấm <strong>"+ Thêm giáo viên"</strong> để tạo tài khoản mới.
             </p>
           </div>
         ) : (
@@ -211,6 +249,7 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({ currentUse
                   <th className="py-3.5 px-4 w-12 text-center">STT</th>
                   <th className="py-3.5 px-4">Họ và tên</th>
                   <th className="py-3.5 px-4">Email</th>
+                  <th className="py-3.5 px-4 text-center">Mã GV</th>
                   <th className="py-3.5 px-4 text-center">Vai trò</th>
                   <th className="py-3.5 px-4 text-center">Trạng thái</th>
                   <th className="py-3.5 px-4 text-center">Ngày tạo</th>
@@ -230,10 +269,10 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({ currentUse
                     {/* Full Name */}
                     <td className="py-3.5 px-4 font-bold text-white">
                       <div className="flex items-center space-x-2.5">
-                        <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white text-xs font-black">
+                        <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white text-xs font-black shrink-0">
                           {(user.displayName || user.email || 'G').charAt(0).toUpperCase()}
                         </div>
-                        <span>{user.displayName || 'Chưa đặt tên'}</span>
+                        <span className="truncate max-w-[150px] sm:max-w-none">{user.displayName || 'Chưa đặt tên'}</span>
                       </div>
                     </td>
 
@@ -242,12 +281,20 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({ currentUse
                       {user.email}
                     </td>
 
+                    {/* Teacher Code */}
+                    <td className="py-3.5 px-4 text-center font-mono text-[11px] text-indigo-300 font-semibold">
+                      {user.teacherCode || '-'}
+                    </td>
+
                     {/* Role */}
                     <td className="py-3.5 px-4 text-center">
                       <div className="inline-flex items-center space-x-1">
                         <select
                           value={user.role}
-                          onChange={(e) => setUserToChangeRole({ user, newRole: e.target.value as UserRole })}
+                          onChange={(e) => {
+                            setActionError(null);
+                            setUserToChangeRole({ user, newRole: e.target.value as UserRole });
+                          }}
                           className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border cursor-pointer outline-hidden transition-all ${
                             user.role === 'admin'
                               ? 'bg-purple-500/10 text-purple-300 border-purple-500/30 hover:bg-purple-500/20'
@@ -295,11 +342,11 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({ currentUse
                     <td className="py-3.5 px-4 text-right">
                       <div className="flex items-center justify-end space-x-1.5">
                         
-                        {/* View Stats Button */}
+                        {/* View Details Modal Button */}
                         <button
                           onClick={() => setSelectedUserForDetail(user)}
-                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-indigo-600/30 text-indigo-300 hover:text-white border border-slate-700 transition-colors"
-                          title="Xem thống kê sử dụng"
+                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-indigo-600/30 text-indigo-300 hover:text-white border border-slate-700 transition-colors cursor-pointer"
+                          title="Xem chi tiết & Thống kê giáo viên"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
@@ -307,8 +354,11 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({ currentUse
                         {/* Lock / Unlock Button */}
                         {user.status === 'active' ? (
                           <button
-                            onClick={() => setUserToToggleStatus(user)}
-                            className="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 transition-all font-semibold text-[11px]"
+                            onClick={() => {
+                              setActionError(null);
+                              setUserToToggleStatus(user);
+                            }}
+                            className="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 transition-all font-semibold text-[11px] cursor-pointer"
                             title="Khóa tài khoản"
                           >
                             <Lock className="w-3.5 h-3.5" />
@@ -316,8 +366,11 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({ currentUse
                           </button>
                         ) : (
                           <button
-                            onClick={() => setUserToToggleStatus(user)}
-                            className="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/30 transition-all font-semibold text-[11px]"
+                            onClick={() => {
+                              setActionError(null);
+                              setUserToToggleStatus(user);
+                            }}
+                            className="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/30 transition-all font-semibold text-[11px] cursor-pointer"
                             title="Mở khóa tài khoản"
                           >
                             <Unlock className="w-3.5 h-3.5" />
@@ -335,6 +388,14 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({ currentUse
           </div>
         )}
       </div>
+
+      {/* Create Teacher Modal */}
+      <CreateTeacherModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSuccess={loadUsers}
+        currentUser={currentUser}
+      />
 
       {/* Teacher Usage Detail Modal */}
       <TeacherDetailModal
@@ -376,14 +437,14 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({ currentUse
               <button
                 onClick={() => setUserToToggleStatus(null)}
                 disabled={isProcessing}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all"
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all cursor-pointer"
               >
                 Hủy bỏ
               </button>
               <button
                 onClick={handleConfirmToggleStatus}
                 disabled={isProcessing}
-                className={`px-5 py-2 rounded-xl text-white text-xs font-bold transition-all flex items-center space-x-1.5 ${
+                className={`px-5 py-2 rounded-xl text-white text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer ${
                   userToToggleStatus.status === 'active'
                     ? 'bg-rose-600 hover:bg-rose-500'
                     : 'bg-emerald-600 hover:bg-emerald-500'
@@ -419,14 +480,14 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({ currentUse
               <button
                 onClick={() => setUserToChangeRole(null)}
                 disabled={isProcessing}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all"
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all cursor-pointer"
               >
                 Hủy bỏ
               </button>
               <button
                 onClick={handleConfirmChangeRole}
                 disabled={isProcessing}
-                className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all flex items-center space-x-1.5"
+                className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer"
               >
                 {isProcessing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 <span>Xác nhận Phân quyền</span>
@@ -439,3 +500,4 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({ currentUse
     </div>
   );
 };
+

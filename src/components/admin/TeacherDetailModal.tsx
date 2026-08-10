@@ -133,8 +133,16 @@ export const TeacherDetailModal: React.FC<TeacherDetailModalProps> = ({ user, is
               </div>
             </div>
 
-            {/* Account dates info */}
+            {/* Account info details */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-slate-300 pt-1">
+              <div className="flex items-center space-x-2">
+                <FileText className="w-4 h-4 text-indigo-400" />
+                <span>Mã giáo viên: <strong className="text-white font-mono">{user.teacherCode || stats?.teacherCode || 'Chưa cập nhật'}</strong></span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Calendar className="w-4 h-4 text-purple-400" />
+                <span>Năm học đang dùng: <strong className="text-white">{stats?.academicYearInUse || '2026-2027'}</strong></span>
+              </div>
               <div className="flex items-center space-x-2">
                 <Calendar className="w-4 h-4 text-indigo-400" />
                 <span>Ngày tạo tài khoản: <strong>{formatDate(user.createdAt)}</strong></span>

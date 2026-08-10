@@ -11,8 +11,10 @@ import { Footer } from './components/Footer';
 import { RescheduleModal } from './components/RescheduleModal';
 import { LessonDrawer } from './components/LessonDrawer';
 import { AdminLayout } from './components/admin/AdminLayout';
-import { TeacherProfile, ScheduleItem, PPCTCurriculum, SharedCurriculum, ClassTimetableRule, TimetableVersion, LessonStatus, PrintSettings, DEFAULT_PRINT_SETTINGS, AcademicYearConfig, AppUser } from './types';
+import { TeacherProfile, ScheduleItem, PPCTCurriculum, SharedCurriculum, ClassTimetableRule, TimetableVersion, LessonStatus, PrintSettings, DEFAULT_PRINT_SETTINGS, AcademicYearConfig, AppUser, SystemConfig } from './types';
 import { isConfiguredAdminUid } from './config/adminConfig';
+import { fetchSystemConfig } from './services/adminService';
+import { SystemAnnouncementBanner } from './components/SystemAnnouncementBanner';
 import { Ban, ShieldAlert, LogOut as LogOutIcon } from 'lucide-react';
 import { PREDEFINED_PPCTS } from './data/primaryCurriculums';
 import { 
@@ -286,6 +288,14 @@ export default function App() {
   const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'idle'>('saved');
   const [authUser, setAuthUser] = useState<any>(null);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
+  const [systemConfig, setSystemConfig] = useState<SystemConfig | null>(null);
+
+  // Load system config on mount and tab switch
+  useEffect(() => {
+    fetchSystemConfig().then(cfg => {
+      setSystemConfig(cfg);
+    }).catch(err => console.warn('Could not load system config:', err));
+  }, [currentTab]);
 
   // Modals & Drawers state
   const [selectedLessonForDrawer, setSelectedLessonForDrawer] = useState<ScheduleItem | null>(null);
@@ -890,6 +900,9 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* System Announcement Banner for Teachers */}
+        <SystemAnnouncementBanner systemConfig={systemConfig} />
+
         {currentTab === 'dashboard' && (
           <DashboardView
             teacher={teacher}
