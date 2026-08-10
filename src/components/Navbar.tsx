@@ -11,9 +11,11 @@ import {
   LayoutDashboard,
   Loader2,
   AlertCircle,
-  Clock
+  Clock,
+  Shield
 } from 'lucide-react';
-import { TeacherProfile } from '../types';
+import { TeacherProfile, AppUser } from '../types';
+import { isConfiguredAdminUid } from '../config/adminConfig';
 
 interface NavbarProps {
   currentTab: string;
@@ -23,6 +25,7 @@ interface NavbarProps {
   setDarkMode: (val: boolean) => void;
   autoSaveStatus: 'saved' | 'saving' | 'idle';
   user: any;
+  appUser?: AppUser | null;
   onLogin: () => void;
   onLogout: () => void;
 }
@@ -35,11 +38,14 @@ export const Navbar: React.FC<NavbarProps> = ({
   setDarkMode,
   autoSaveStatus,
   user,
+  appUser,
   onLogin,
   onLogout,
 }) => {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginErrorModal, setLoginErrorModal] = useState<{ code: string; message: string; hint: string } | null>(null);
+
+  const isAdminUser = appUser?.role === 'admin' || isConfiguredAdminUid(user?.uid);
 
   const handleLoginClick = async () => {
     setIsLoggingIn(true);
@@ -148,6 +154,21 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* User Profile / Auth */}
             {user ? (
               <div className="flex items-center space-x-2.5 pl-2 border-l border-indigo-500/30">
+                {isAdminUser && (
+                  <button
+                    onClick={() => setCurrentTab('admin')}
+                    className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer ${
+                      currentTab === 'admin'
+                        ? 'bg-purple-600 text-white shadow-purple-500/30 border border-purple-400'
+                        : 'bg-gradient-to-r from-purple-900/80 to-indigo-900/80 hover:from-purple-800 hover:to-indigo-800 text-purple-200 border border-purple-500/40'
+                    }`}
+                    title="Vào Khu vực Quản trị"
+                  >
+                    <Shield className="w-3.5 h-3.5 text-purple-300" />
+                    <span className="hidden lg:inline">Quản trị</span>
+                  </button>
+                )}
+
                 <div className="flex items-center space-x-2 bg-slate-900/90 px-2.5 py-1 rounded-xl border border-indigo-500/30">
                   <img
                     src={user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(teacher.fullName)}&background=6366f1&color=fff`}
@@ -159,7 +180,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       {teacher.fullName || 'Hồng Bích Trâm'}
                     </span>
                     <span className="text-[10px] text-indigo-300 font-medium block">
-                      Giáo viên
+                      {isAdminUser ? 'Admin / Giáo viên' : 'Giáo viên'}
                     </span>
                   </div>
                 </div>

@@ -10,7 +10,10 @@ import { TimetableView } from './components/TimetableView';
 import { Footer } from './components/Footer';
 import { RescheduleModal } from './components/RescheduleModal';
 import { LessonDrawer } from './components/LessonDrawer';
-import { TeacherProfile, ScheduleItem, PPCTCurriculum, SharedCurriculum, ClassTimetableRule, TimetableVersion, LessonStatus, PrintSettings, DEFAULT_PRINT_SETTINGS, AcademicYearConfig } from './types';
+import { AdminLayout } from './components/admin/AdminLayout';
+import { TeacherProfile, ScheduleItem, PPCTCurriculum, SharedCurriculum, ClassTimetableRule, TimetableVersion, LessonStatus, PrintSettings, DEFAULT_PRINT_SETTINGS, AcademicYearConfig, AppUser } from './types';
+import { isConfiguredAdminUid } from './config/adminConfig';
+import { Ban, ShieldAlert, LogOut as LogOutIcon } from 'lucide-react';
 import { PREDEFINED_PPCTS } from './data/primaryCurriculums';
 import { 
   auth, 
@@ -282,6 +285,7 @@ export default function App() {
 
   const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'idle'>('saved');
   const [authUser, setAuthUser] = useState<any>(null);
+  const [appUser, setAppUser] = useState<AppUser | null>(null);
 
   // Modals & Drawers state
   const [selectedLessonForDrawer, setSelectedLessonForDrawer] = useState<ScheduleItem | null>(null);
@@ -308,7 +312,8 @@ export default function App() {
         setAutoSaveStatus('saving');
         try {
           // Sync user role and status in users/{uid} collection
-          await syncUserRoleOnLogin(user);
+          const syncedUser = await syncUserRoleOnLogin(user);
+          setAppUser(syncedUser);
 
           // Fetch existing user data from Firestore
           const year = teacher.academicYear || '2026-2027';
@@ -806,18 +811,82 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0B1120] text-slate-800 dark:text-slate-100 font-sans transition-colors duration-200 flex flex-col">
-      {/* Header Navigation */}
-      <Navbar
-        currentTab={currentTab}
-        setCurrentTab={setCurrentTab}
-        teacher={teacher}
-        darkMode={darkMode}
-        setDarkMode={setDarkMode}
-        autoSaveStatus={autoSaveStatus}
-        user={authUser}
-        onLogin={signInWithGoogle}
-        onLogout={logoutUser}
-      />
+      {/* Locked Account Notice overlay */}
+      {appUser && appUser.status === 'disabled' ? (
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-slate-900 border border-rose-500/40 p-6 rounded-2xl shadow-2xl text-white space-y-5 text-center">
+            <div className="w-16 h-16 bg-rose-500/20 text-rose-400 rounded-full flex items-center justify-center mx-auto border border-rose-500/40 shadow-lg shadow-rose-500/20">
+              <Ban className="w-8 h-8" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-lg font-black text-rose-300 uppercase tracking-wide">
+                TÀI KHOẢN CỦA BẠN ĐÃ BỊ KHÓA
+              </h2>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Tài khoản <span className="font-bold text-white">{appUser.email}</span> hiện đang bị tạm khóa bởi Quản trị viên hệ thống.
+              </p>
+              <p className="text-[11px] text-slate-400">
+                Vui lòng liên hệ Ban Giám hiệu hoặc Quản trị viên để được hỗ trợ mở khóa.
+              </p>
+            </div>
+            <button 
+              onClick={logoutUser} 
+              className="w-full flex items-center justify-center space-x-2 px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl transition-all shadow-md cursor-pointer"
+            >
+              <LogOutIcon className="w-4 h-4" />
+              <span>Đăng xuất khỏi hệ thống</span>
+            </button>
+          </div>
+        </div>
+      ) : currentTab === 'admin' ? (
+        (() => {
+          const isAdminUser = appUser?.role === 'admin' || isConfiguredAdminUid(authUser?.uid);
+          if (!isAdminUser) {
+            return (
+              <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+                <div className="max-w-md w-full bg-slate-900 border border-amber-500/40 p-6 rounded-2xl shadow-2xl text-white space-y-4 text-center">
+                  <div className="w-16 h-16 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center mx-auto border border-amber-500/40">
+                    <ShieldAlert className="w-8 h-8" />
+                  </div>
+                  <h2 className="text-base font-bold text-amber-300 uppercase">TỪ CHỐI TRUY CẬP PHÂN HỆ QUẢN TRỊ</h2>
+                  <p className="text-xs text-slate-300">
+                    Tài khoản của bạn là Giáo viên và không có quyền truy cập khu vực Quản trị.
+                  </p>
+                  <button
+                    onClick={() => setCurrentTab('dashboard')}
+                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
+                  >
+                    Quay lại Trang chủ Giáo viên
+                  </button>
+                </div>
+              </div>
+            );
+          }
+          return (
+            <AdminLayout
+              currentUser={appUser || authUser}
+              onBackToMain={() => setCurrentTab('dashboard')}
+              onLogout={logoutUser}
+              darkMode={darkMode}
+              setDarkMode={setDarkMode}
+            />
+          );
+        })()
+      ) : (
+        <>
+          {/* Header Navigation */}
+          <Navbar
+            currentTab={currentTab}
+            setCurrentTab={setCurrentTab}
+            teacher={teacher}
+            darkMode={darkMode}
+            setDarkMode={setDarkMode}
+            autoSaveStatus={autoSaveStatus}
+            user={authUser}
+            appUser={appUser}
+            onLogin={signInWithGoogle}
+            onLogout={logoutUser}
+          />
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -934,6 +1003,8 @@ export default function App() {
         onClose={() => setIsDrawerOpen(false)}
         onSave={handleSaveLessonDrawer}
       />
+        </>
+      )}
     </div>
   );
 }

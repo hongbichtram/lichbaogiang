@@ -175,6 +175,14 @@ export const syncUserRoleOnLogin = async (user: User): Promise<AppUser> => {
         await setDoc(userRef, { role: 'admin', updatedAt: serverTimestamp() }, { merge: true });
       }
 
+      // Update lastLoginAt on login
+      await setDoc(userRef, { 
+        displayName: data.displayName || user.displayName || '',
+        email: data.email || user.email || '',
+        lastLoginAt: serverTimestamp(),
+        updatedAt: serverTimestamp() 
+      }, { merge: true });
+
       appUser = {
         uid,
         displayName: data.displayName || user.displayName || '',
@@ -183,6 +191,7 @@ export const syncUserRoleOnLogin = async (user: User): Promise<AppUser> => {
         status,
         createdAt: data.createdAt,
         updatedAt: data.updatedAt,
+        lastLoginAt: data.lastLoginAt,
       };
     } else {
       // Document does not exist: create default user document
@@ -196,6 +205,7 @@ export const syncUserRoleOnLogin = async (user: User): Promise<AppUser> => {
         status: defaultStatus,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
+        lastLoginAt: serverTimestamp(),
       };
 
       await setDoc(userRef, newUserDoc);
@@ -207,6 +217,23 @@ export const syncUserRoleOnLogin = async (user: User): Promise<AppUser> => {
         role: defaultRole,
         status: defaultStatus,
       };
+    }
+
+    // Log system activity entry for login
+    try {
+      const logsRef = collection(db, 'systemLogs');
+      await setDoc(doc(logsRef), {
+        uid,
+        performerName: appUser.displayName || appUser.email || 'Người dùng',
+        performerEmail: appUser.email || '',
+        action: 'login',
+        actionLabel: 'Đăng nhập',
+        details: `Đăng nhập hệ thống thành công (Vai trò: ${appUser.role.toUpperCase()})`,
+        timestamp: new Date().toISOString(),
+        createdAt: serverTimestamp()
+      });
+    } catch (e) {
+      // Silently ignore log creation if permissions fail on initial state
     }
   } catch (err) {
     console.error('Error syncing user document on login:', err);

@@ -108,6 +108,14 @@
     "/teacherCurriculumData/{userId}": {
       "schema": "teacherCurriculumData",
       "description": "Teacher-specific curriculum selection, progress, notes and custom lessons"
+    },
+    "/systemConfig/{configId}": {
+      "schema": "systemConfig",
+      "description": "General system configuration managed by Admin"
+    },
+    "/systemLogs/{logId}": {
+      "schema": "systemLogs",
+      "description": "Audit and activity log entries for system actions"
     }
   }
 }

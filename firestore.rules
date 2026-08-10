@@ -82,6 +82,19 @@ service cloud.firestore {
     match /debug/{userId} {
       allow read, write: if isAuthenticated() && (request.auth.uid == userId || isAppAdmin());
     }
+
+    // 8. System Configuration (systemConfig/{configId})
+    match /systemConfig/{configId} {
+      allow read: if isAuthenticated();
+      allow write: if isAppAdmin();
+    }
+
+    // 9. System Activity Logs (systemLogs/{logId})
+    match /systemLogs/{logId} {
+      allow read: if isAppAdmin();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAppAdmin();
+    }
   }
 }
 

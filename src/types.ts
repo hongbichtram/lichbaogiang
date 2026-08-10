@@ -11,6 +11,42 @@ export interface AppUser {
   status: UserStatus;
   createdAt?: string | any;
   updatedAt?: string | any;
+  lastLoginAt?: string | any;
+}
+
+export interface SystemConfig {
+  appName: string;
+  schoolName: string;
+  logoUrl?: string;
+  defaultAcademicYear: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  announcement?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+export interface SystemLog {
+  id: string;
+  uid: string;
+  performerName?: string;
+  performerEmail?: string;
+  action: 'login' | 'logout' | 'lock_user' | 'unlock_user' | 'change_role' | 'update_system_config';
+  actionLabel?: string;
+  targetUserId?: string;
+  targetUserName?: string;
+  targetUserEmail?: string;
+  details?: string;
+  timestamp: string;
+  metadata?: any;
+}
+
+export interface TeacherUsageStats {
+  teacherUid: string;
+  timetableVersionsCount: number;
+  academicWeeksConfiguredCount: number;
+  scheduleItemsCount: number;
+  ppctCurriculumsCount: number;
 }
 
 export interface TeacherProfile {
