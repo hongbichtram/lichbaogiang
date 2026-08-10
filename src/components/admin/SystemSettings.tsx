@@ -211,7 +211,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ currentUser }) =
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
                 <Building2 className="w-4 h-4 text-blue-400" />
-                <span>Tên trường / Đơn vị</span>
+                <span>Tên trường</span>
                 <span className="text-rose-400">*</span>
               </label>
               <input
@@ -277,7 +277,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ currentUser }) =
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
                 <Mail className="w-4 h-4 text-purple-400" />
-                <span>Email hỗ trợ</span>
+                <span>Email</span>
               </label>
               <input
                 type="email"
@@ -292,7 +292,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ currentUser }) =
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
                 <Phone className="w-4 h-4 text-cyan-400" />
-                <span>Số điện thoại hỗ trợ</span>
+                <span>Hotline</span>
               </label>
               <input
                 type="text"
@@ -317,7 +317,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ currentUser }) =
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
               <Megaphone className="w-4 h-4 text-amber-400" />
-              <span>Nội dung thông báo chung (Hiển thị cho Giáo viên)</span>
+              <span>Nội dung thông báo</span>
             </label>
             <textarea
               rows={3}
