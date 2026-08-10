@@ -15,13 +15,16 @@ import {
   getDocs,
   collection,
   deleteDoc,
+  writeBatch,
   serverTimestamp
 } from 'firebase/firestore';
 import { 
   TeacherProfile, 
+  AcademicYearConfig,
   PPCTCurriculum, 
   ScheduleItem, 
   ClassTimetableRule, 
+  TimetableVersion,
   AppUser, 
   UserRole, 
   UserStatus,
@@ -277,6 +280,219 @@ export const fetchTeacherProfileFromFirestore = async (uid: string): Promise<{ p
     console.error('FIRESTORE ERROR', { collection: 'teachers', uid, action: 'read', error: err });
   }
   return { profile: null, rules: null };
+};
+
+// 1b. Timetable Versions (subcollection teachers/{uid}/timetableVersions)
+export const fetchTimetableVersionsFromFirestore = async (uid: string): Promise<TimetableVersion[]> => {
+  console.log('FIRESTORE LOAD VERSIONS START', { collection: 'teachers', subcollection: 'timetableVersions', uid });
+  if (!uid) return [];
+  try {
+    const ref = collection(db, 'teachers', uid, 'timetableVersions');
+    const snap = await getDocs(ref);
+    const versions: TimetableVersion[] = [];
+    snap.forEach(docSnap => {
+      const data = docSnap.data();
+      versions.push({
+        id: docSnap.id,
+        uid: data.uid || uid,
+        academicYear: data.academicYear || '2025-2026',
+        versionName: data.versionName || 'Thời khóa biểu',
+        fromWeek: Number(data.fromWeek) || 1,
+        toWeek: Number(data.toWeek) || 35,
+        rules: data.rules || [],
+        createdAt: data.createdAt || new Date().toISOString(),
+        updatedAt: data.updatedAt || new Date().toISOString(),
+        createdBy: data.createdBy || uid,
+      });
+    });
+    // Sort versions by fromWeek ascending
+    versions.sort((a, b) => a.fromWeek - b.fromWeek);
+    console.log('FIRESTORE LOAD VERSIONS SUCCESS', { uid, count: versions.length });
+    return versions;
+  } catch (err) {
+    console.error('FIRESTORE ERROR loading timetableVersions:', err);
+    return [];
+  }
+};
+
+export const saveTimetableVersionToFirestore = async (uid: string, version: TimetableVersion): Promise<void> => {
+  if (!uid || !version.id) return;
+  try {
+    const ref = doc(db, 'teachers', uid, 'timetableVersions', version.id);
+    await setDoc(ref, {
+      ...version,
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
+  } catch (err) {
+    console.error('FIRESTORE ERROR saving timetableVersion:', err);
+  }
+};
+
+export const deleteTimetableVersionFromFirestore = async (uid: string, versionId: string): Promise<void> => {
+  if (!uid || !versionId) return;
+  try {
+    const ref = doc(db, 'teachers', uid, 'timetableVersions', versionId);
+    await deleteDoc(ref);
+  } catch (err) {
+    console.error('FIRESTORE ERROR deleting timetableVersion:', err);
+  }
+};
+
+export const saveOrSplitTimetableVersionInFirestore = async (
+  uid: string,
+  academicYear: string,
+  fromWeek: number,
+  newRules: ClassTimetableRule[],
+  versionName?: string
+): Promise<TimetableVersion[]> => {
+  if (!uid) return [];
+
+  try {
+    // 1. Fetch current versions
+    const existingVersions = await fetchTimetableVersionsFromFirestore(uid);
+    const yearVersions = existingVersions.filter(v => v.academicYear === academicYear);
+
+    const batch = writeBatch(db);
+    const now = new Date().toISOString();
+
+    if (yearVersions.length === 0) {
+      // If no version exists yet for this academic year:
+      if (fromWeek === 1) {
+        // Simple case: single version covering 1-35
+        const newVerId = `v-1-35-${Date.now()}`;
+        const newVerDoc: TimetableVersion = {
+          id: newVerId,
+          uid,
+          academicYear,
+          versionName: versionName || 'Thời khóa biểu ban đầu',
+          fromWeek: 1,
+          toWeek: 35,
+          rules: newRules,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: uid,
+        };
+        const ref = doc(db, 'teachers', uid, 'timetableVersions', newVerId);
+        batch.set(ref, newVerDoc);
+      } else {
+        // fromWeek > 1: Create Initial Version for 1..(fromWeek - 1) and New Version for fromWeek..35
+        // Fetch current snapshot rules from teacher document if available as baseline for 1..(fromWeek - 1)
+        const teacherSnap = await fetchTeacherProfileFromFirestore(uid);
+        const baselineRules = teacherSnap.rules || newRules;
+
+        const v1Id = `v-1-${fromWeek - 1}-${Date.now()}`;
+        const v1Doc: TimetableVersion = {
+          id: v1Id,
+          uid,
+          academicYear,
+          versionName: 'Thời khóa biểu ban đầu',
+          fromWeek: 1,
+          toWeek: fromWeek - 1,
+          rules: baselineRules,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: uid,
+        };
+        batch.set(doc(db, 'teachers', uid, 'timetableVersions', v1Id), v1Doc);
+
+        const v2Id = `v-${fromWeek}-35-${Date.now()}`;
+        const v2Doc: TimetableVersion = {
+          id: v2Id,
+          uid,
+          academicYear,
+          versionName: versionName || `Thời khóa biểu áp dụng từ tuần ${fromWeek}`,
+          fromWeek,
+          toWeek: 35,
+          rules: newRules,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: uid,
+        };
+        batch.set(doc(db, 'teachers', uid, 'timetableVersions', v2Id), v2Doc);
+      }
+    } else {
+      // Versions already exist -> split or replace without overlap!
+      for (const v of yearVersions) {
+        const vRef = doc(db, 'teachers', uid, 'timetableVersions', v.id);
+
+        if (v.fromWeek < fromWeek && v.toWeek >= fromWeek) {
+          // Slice previous version so its end week becomes (fromWeek - 1)
+          batch.update(vRef, {
+            toWeek: fromWeek - 1,
+            updatedAt: now,
+          });
+        } else if (v.fromWeek >= fromWeek) {
+          // Remove existing future/overlapping versions starting at or after fromWeek
+          batch.delete(vRef);
+        }
+      }
+
+      // Create new version starting from fromWeek to 35
+      const newVerId = `v-${fromWeek}-35-${Date.now()}`;
+      const newVerDoc: TimetableVersion = {
+        id: newVerId,
+        uid,
+        academicYear,
+        versionName: versionName || (fromWeek === 1 ? 'Thời khóa biểu ban đầu' : `Thời khóa biểu áp dụng từ tuần ${fromWeek}`),
+        fromWeek,
+        toWeek: 35,
+        rules: newRules,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: uid,
+      };
+      batch.set(doc(db, 'teachers', uid, 'timetableVersions', newVerId), newVerDoc);
+    }
+
+    // Also sync rules snapshot in teachers/{uid}.rules for backward compatibility
+    const teacherRef = doc(db, 'teachers', uid);
+    batch.set(teacherRef, { rules: newRules, updatedAt: now }, { merge: true });
+
+    // Commit batch
+    await batch.commit();
+
+    // Fetch and return updated list of versions
+    return await fetchTimetableVersionsFromFirestore(uid);
+  } catch (err) {
+    console.error('FIRESTORE ERROR in saveOrSplitTimetableVersionInFirestore:', err);
+    return await fetchTimetableVersionsFromFirestore(uid);
+  }
+};
+
+// --- ACADEMIC YEAR CONFIG HELPERS (teachers/{uid}/academicYearConfigs/{academicYear}) ---
+export const saveAcademicYearConfigToFirestore = async (uid: string, config: AcademicYearConfig): Promise<void> => {
+  if (!uid || !config.academicYear) return;
+  try {
+    const ref = doc(db, 'teachers', uid, 'academicYearConfigs', config.academicYear);
+    await setDoc(ref, {
+      ...config,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+    console.log('FIRESTORE SAVE ACADEMIC YEAR CONFIG SUCCESS', { uid, academicYear: config.academicYear });
+  } catch (err) {
+    console.error('FIRESTORE ERROR saving academicYearConfig:', err);
+  }
+};
+
+export const fetchAcademicYearConfigFromFirestore = async (uid: string, academicYear: string): Promise<AcademicYearConfig | null> => {
+  if (!uid || !academicYear) return null;
+  try {
+    const ref = doc(db, 'teachers', uid, 'academicYearConfigs', academicYear);
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      const data = snap.data();
+      return {
+        academicYear: data.academicYear || academicYear,
+        week1StartDate: data.week1StartDate || '2026-09-01',
+        totalWeeks: Number(data.totalWeeks) || 35,
+        customWeekMap: data.customWeekMap || undefined,
+        updatedAt: data.updatedAt || new Date().toISOString()
+      };
+    }
+  } catch (err) {
+    console.error('FIRESTORE ERROR fetching academicYearConfig:', err);
+  }
+  return null;
 };
 
 // 2. PPCT Curriculums

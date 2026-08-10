@@ -37,6 +37,14 @@ service cloud.firestore {
     // 2. Teacher Profiles collection (teachers/{userId})
     match /teachers/{userId} {
       allow read, write: if isAuthenticated() && (request.auth.uid == userId || isAppAdmin());
+      
+      match /timetableVersions/{versionId} {
+        allow read, write: if isAuthenticated() && (request.auth.uid == userId || isAppAdmin());
+      }
+
+      match /academicYearConfigs/{configId} {
+        allow read, write: if isAuthenticated() && (request.auth.uid == userId || isAppAdmin());
+      }
     }
 
     // 3. PPCT Curriculums (curriculums/{userId}) - Legacy/Current

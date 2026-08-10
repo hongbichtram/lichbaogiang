@@ -10,7 +10,7 @@ import { TimetableView } from './components/TimetableView';
 import { Footer } from './components/Footer';
 import { RescheduleModal } from './components/RescheduleModal';
 import { LessonDrawer } from './components/LessonDrawer';
-import { TeacherProfile, ScheduleItem, PPCTCurriculum, SharedCurriculum, ClassTimetableRule, LessonStatus, PrintSettings, DEFAULT_PRINT_SETTINGS } from './types';
+import { TeacherProfile, ScheduleItem, PPCTCurriculum, SharedCurriculum, ClassTimetableRule, TimetableVersion, LessonStatus, PrintSettings, DEFAULT_PRINT_SETTINGS, AcademicYearConfig } from './types';
 import { PREDEFINED_PPCTS } from './data/primaryCurriculums';
 import { 
   auth, 
@@ -18,6 +18,8 @@ import {
   logoutUser,
   saveTeacherProfileToFirestore,
   fetchTeacherProfileFromFirestore,
+  fetchTimetableVersionsFromFirestore,
+  saveOrSplitTimetableVersionInFirestore,
   savePPCTsToFirestore,
   fetchPPCTsFromFirestore,
   saveSchedulesToFirestore,
@@ -26,11 +28,15 @@ import {
   fetchCustomWeekDatesFromFirestore,
   savePrintSettingsToFirestore,
   fetchPrintSettingsFromFirestore,
+  saveAcademicYearConfigToFirestore,
+  fetchAcademicYearConfigFromFirestore,
   syncUserRoleOnLogin
 } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
 import { loadCustomWeekDatesMap, saveCustomWeekDatesMap } from './utils/dateWeekUtils';
+import { getTimetableVersionForWeek } from './utils/timetableUtils';
+import { getNormalizedSession, getNormalizedPeriod } from './utils/classUtils';
 
 // Helper to create default teacher profile
 const DEFAULT_TEACHER: TeacherProfile = {
@@ -242,9 +248,30 @@ export default function App() {
     return saved ? JSON.parse(saved) : DEFAULT_RULES;
   });
 
+  const [timetableVersions, setTimetableVersions] = useState<TimetableVersion[]>(() => {
+    const saved = localStorage.getItem('smart_schedule_timetable_versions');
+    return saved ? JSON.parse(saved) : [];
+  });
+
   const [printSettings, setPrintSettings] = useState<PrintSettings>(() => {
     const saved = localStorage.getItem('smart_schedule_print_settings');
     return saved ? JSON.parse(saved) : DEFAULT_PRINT_SETTINGS;
+  });
+
+  const [academicYearConfig, setAcademicYearConfig] = useState<AcademicYearConfig>(() => {
+    const saved = localStorage.getItem('smart_schedule_academic_year_config');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // fallback
+      }
+    }
+    return {
+      academicYear: '2026-2027',
+      week1StartDate: '2026-09-01',
+      totalWeeks: 35
+    };
   });
 
   const [darkMode, setDarkMode] = useState<boolean>(() => {
@@ -284,15 +311,18 @@ export default function App() {
           await syncUserRoleOnLogin(user);
 
           // Fetch existing user data from Firestore
-          const [fsTeacherData, fsPPCTs, fsSchedules, fsCustomDates, fsPrintSettings] = await Promise.all([
+          const year = teacher.academicYear || '2026-2027';
+          const [fsTeacherData, fsVersions, fsPPCTs, fsSchedules, fsCustomDates, fsPrintSettings, fsConfig] = await Promise.all([
             fetchTeacherProfileFromFirestore(user.uid),
+            fetchTimetableVersionsFromFirestore(user.uid),
             fetchPPCTsFromFirestore(user.uid),
             fetchSchedulesFromFirestore(user.uid),
             fetchCustomWeekDatesFromFirestore(user.uid),
             fetchPrintSettingsFromFirestore(user.uid),
+            fetchAcademicYearConfigFromFirestore(user.uid, year),
           ]);
 
-          const hasRemoteData = !!(fsTeacherData.profile || fsPPCTs || fsSchedules || fsCustomDates || fsPrintSettings);
+          const hasRemoteData = !!(fsTeacherData.profile || fsVersions.length > 0 || fsPPCTs || fsSchedules || fsCustomDates || fsPrintSettings || fsConfig);
 
           if (hasRemoteData) {
             // Firestore has existing data for this teacher -> load remote state
@@ -300,10 +330,34 @@ export default function App() {
               setTeacher(fsTeacherData.profile);
               localStorage.setItem('smart_schedule_teacher', JSON.stringify(fsTeacherData.profile));
             }
+            if (fsConfig) {
+              setAcademicYearConfig(fsConfig);
+              localStorage.setItem('smart_schedule_academic_year_config', JSON.stringify(fsConfig));
+            }
             if (fsTeacherData.rules) {
               setTimetableRules(fsTeacherData.rules);
               localStorage.setItem('smart_schedule_rules', JSON.stringify(fsTeacherData.rules));
             }
+
+            // Sync Timetable Versions
+            if (fsVersions && fsVersions.length > 0) {
+              setTimetableVersions(fsVersions);
+              localStorage.setItem('smart_schedule_timetable_versions', JSON.stringify(fsVersions));
+            } else if (fsTeacherData.rules && fsTeacherData.rules.length > 0) {
+              // Migration: User has rules in teachers/{uid}.rules but no timetableVersions subcollection yet
+              console.log('MIGRATION: Auto-creating initial timetableVersion from teachers/{uid}.rules');
+              const year = fsTeacherData.profile?.academicYear || teacher.academicYear || '2025-2026';
+              const migrated = await saveOrSplitTimetableVersionInFirestore(
+                user.uid,
+                year,
+                1,
+                fsTeacherData.rules,
+                'Thời khóa biểu ban đầu'
+              );
+              setTimetableVersions(migrated);
+              localStorage.setItem('smart_schedule_timetable_versions', JSON.stringify(migrated));
+            }
+
             if (fsPPCTs) {
               setCurriculums(fsPPCTs);
               localStorage.setItem('smart_schedule_ppcts', JSON.stringify(fsPPCTs));
@@ -333,6 +387,17 @@ export default function App() {
             localStorage.setItem('smart_schedule_teacher', JSON.stringify(updatedProfile));
 
             const localCustomDates = loadCustomWeekDatesMap();
+
+            const year = updatedProfile.academicYear || '2025-2026';
+            const initialVersions = await saveOrSplitTimetableVersionInFirestore(
+              user.uid,
+              year,
+              1,
+              timetableRules,
+              'Thời khóa biểu ban đầu'
+            );
+            setTimetableVersions(initialVersions);
+            localStorage.setItem('smart_schedule_timetable_versions', JSON.stringify(initialVersions));
 
             await Promise.all([
               saveTeacherProfileToFirestore(user.uid, updatedProfile, timetableRules),
@@ -475,6 +540,22 @@ export default function App() {
     setIsRescheduleOpen(false);
   };
 
+  // Academic Year Config Handler
+  const handleSaveAcademicYearConfig = async (newConfig: AcademicYearConfig) => {
+    setAcademicYearConfig(newConfig);
+    localStorage.setItem('smart_schedule_academic_year_config', JSON.stringify(newConfig));
+    if (authUser?.uid) {
+      setAutoSaveStatus('saving');
+      try {
+        await saveAcademicYearConfigToFirestore(authUser.uid, newConfig);
+      } catch (err) {
+        console.error('Failed to save academic year config to Firestore:', err);
+      } finally {
+        setAutoSaveStatus('saved');
+      }
+    }
+  };
+
   // Print Settings Handler
   const handleSavePrintSettings = async (newSettings: PrintSettings) => {
     setPrintSettings(newSettings);
@@ -545,10 +626,9 @@ export default function App() {
     updateSchedulesWithHistory(updated);
   };
 
-  // Auto Generate Schedule from Timetable Rules + Curriculums
+  // Auto Generate Schedule from Timetable Rules + Curriculums with Versioning
   const handleGenerateFromTKB = (weekNumber?: number) => {
-    if (timetableRules.length === 0) return { createdCount: 0, skippedCount: 0 };
-    
+    const year = teacher.academicYear || '2025-2026';
     const weeksToProcess = weekNumber ? [weekNumber] : Array.from({ length: 35 }, (_, i) => i + 1);
     const existing = [...schedules];
     const newItems: ScheduleItem[] = [];
@@ -556,7 +636,23 @@ export default function App() {
     let skippedCount = 0;
 
     for (const w of weeksToProcess) {
-      timetableRules.forEach((rule, idx) => {
+      let activeRules: ClassTimetableRule[] = [];
+      if (timetableVersions && timetableVersions.length > 0) {
+        const ver = getTimetableVersionForWeek(timetableVersions, year, w);
+        if (!ver) {
+          if (weekNumber) {
+            return { createdCount: 0, skippedCount: 0, noVersionFound: true };
+          }
+          continue;
+        }
+        activeRules = ver.rules;
+      } else {
+        activeRules = timetableRules;
+      }
+
+      if (!activeRules || activeRules.length === 0) continue;
+
+      activeRules.forEach((rule, idx) => {
         const normSession = getNormalizedSession(rule);
         const normPeriod = getNormalizedPeriod(rule);
 
@@ -585,7 +681,7 @@ export default function App() {
           teacherId: teacher.uid,
           curriculumId: curr?.id,
           lessonId: ppctItem?.id,
-          academicYear: teacher.academicYear || '2025-2026',
+          academicYear: year,
           semester: teacher.semester || 'Học kỳ I',
           weekNumber: w,
           dayOfWeek: rule.dayOfWeek,
@@ -611,7 +707,7 @@ export default function App() {
       updateSchedulesWithHistory([...existing, ...newItems]);
     }
 
-    return { createdCount, skippedCount };
+    return { createdCount, skippedCount, noVersionFound: false };
   };
 
   const handleAutoGenerateSchedule = () => {
@@ -642,11 +738,69 @@ export default function App() {
     }
   };
 
-  const handleSaveTimetableRules = (newRules: ClassTimetableRule[]) => {
+  const handleSaveTimetableRules = async (newRules: ClassTimetableRule[], fromWeek: number = 1, versionName?: string) => {
     setTimetableRules(newRules);
     localStorage.setItem('smart_schedule_rules', JSON.stringify(newRules));
+
+    const year = teacher.academicYear || '2025-2026';
     if (authUser?.uid) {
-      saveTeacherProfileToFirestore(authUser.uid, teacher, newRules);
+      const updatedVersions = await saveOrSplitTimetableVersionInFirestore(
+        authUser.uid,
+        year,
+        fromWeek,
+        newRules,
+        versionName
+      );
+      setTimetableVersions(updatedVersions);
+      localStorage.setItem('smart_schedule_timetable_versions', JSON.stringify(updatedVersions));
+    } else {
+      const now = new Date().toISOString();
+      const newVer: TimetableVersion = {
+        id: `v-${fromWeek}-35-${Date.now()}`,
+        uid: teacher.uid,
+        academicYear: year,
+        versionName: versionName || (fromWeek === 1 ? 'Thời khóa biểu ban đầu' : `Thời khóa biểu áp dụng từ tuần ${fromWeek}`),
+        fromWeek,
+        toWeek: 35,
+        rules: newRules,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: teacher.uid,
+      };
+
+      const yearVers = timetableVersions.filter(v => v.academicYear === year);
+      const otherVers = timetableVersions.filter(v => v.academicYear !== year);
+
+      let adjusted: TimetableVersion[] = [];
+      if (yearVers.length === 0) {
+        if (fromWeek === 1) {
+          adjusted = [newVer];
+        } else {
+          const v1: TimetableVersion = {
+            id: `v-1-${fromWeek - 1}-${Date.now()}`,
+            uid: teacher.uid,
+            academicYear: year,
+            versionName: 'Thời khóa biểu ban đầu',
+            fromWeek: 1,
+            toWeek: fromWeek - 1,
+            rules: timetableRules,
+            createdAt: now,
+            updatedAt: now,
+            createdBy: teacher.uid,
+          };
+          adjusted = [v1, newVer];
+        }
+      } else {
+        adjusted = yearVers
+          .filter(v => v.fromWeek < fromWeek)
+          .map(v => v.toWeek >= fromWeek ? { ...v, toWeek: fromWeek - 1, updatedAt: now } : v);
+        adjusted.push(newVer);
+      }
+
+      adjusted.sort((a, b) => a.fromWeek - b.fromWeek);
+      const combined = [...otherVers, ...adjusted];
+      setTimetableVersions(combined);
+      localStorage.setItem('smart_schedule_timetable_versions', JSON.stringify(combined));
     }
   };
 
@@ -684,6 +838,8 @@ export default function App() {
             schedules={schedules}
             curriculums={curriculums}
             timetableRules={timetableRules}
+            timetableVersions={timetableVersions}
+            academicYearConfig={academicYearConfig}
             teacherAssignedClasses={teacher.assignedClasses}
             currentWeek={currentWeek}
             printSettings={printSettings}
@@ -720,6 +876,8 @@ export default function App() {
           <TimetableView
             teacher={teacher}
             timetableRules={timetableRules}
+            timetableVersions={timetableVersions}
+            currentWeek={currentWeek}
             onSaveProfile={handleSaveProfile}
             onSaveTimetableRules={handleSaveTimetableRules}
             onAutoGenerateSchedule={handleAutoGenerateSchedule}
@@ -746,9 +904,12 @@ export default function App() {
             teacher={teacher}
             timetableRules={timetableRules}
             printSettings={printSettings}
+            academicYearConfig={academicYearConfig}
+            timetableVersions={timetableVersions}
             onSaveProfile={handleSaveProfile}
             onSaveTimetableRules={handleSaveTimetableRules}
             onSavePrintSettings={handleSavePrintSettings}
+            onSaveAcademicYearConfig={handleSaveAcademicYearConfig}
             onAutoGenerateSchedule={handleAutoGenerateSchedule}
           />
         )}

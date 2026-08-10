@@ -10,7 +10,7 @@ import {
   Filter,
   BookOpen
 } from 'lucide-react';
-import { TeacherProfile, ClassTimetableRule } from '../types';
+import { TeacherProfile, ClassTimetableRule, TimetableVersion } from '../types';
 import { ClassSelectDropdown } from './ClassSelectDropdown';
 import { 
   inferGradeFromClassName, 
@@ -28,8 +28,10 @@ import {
 interface TimetableViewProps {
   teacher: TeacherProfile;
   timetableRules: ClassTimetableRule[];
+  timetableVersions?: TimetableVersion[];
+  currentWeek?: number;
   onSaveProfile: (profile: TeacherProfile) => void;
-  onSaveTimetableRules: (rules: ClassTimetableRule[]) => void;
+  onSaveTimetableRules: (rules: ClassTimetableRule[], fromWeek?: number, versionName?: string) => void;
   onAutoGenerateSchedule: () => void;
 }
 
@@ -40,12 +42,16 @@ const DAYS_OF_WEEK: Array<'Thứ 2' | 'Thứ 3' | 'Thứ 4' | 'Thứ 5' | 'Thứ
 export const TimetableView: React.FC<TimetableViewProps> = ({
   teacher,
   timetableRules,
+  timetableVersions = [],
+  currentWeek = 1,
   onSaveProfile,
   onSaveTimetableRules,
   onAutoGenerateSchedule,
 }) => {
   const [rules, setRules] = useState<ClassTimetableRule[]>([...timetableRules]);
   const [addClassInput, setAddClassInput] = useState('');
+  const [applyFromWeek, setApplyFromWeek] = useState<number>(currentWeek || 1);
+  const [versionNameInput, setVersionNameInput] = useState<string>('');
   
   // Filter by subject on timetable matrix
   const [subjectFilter, setSubjectFilter] = useState<string>('all');
@@ -195,7 +201,7 @@ export const TimetableView: React.FC<TimetableViewProps> = ({
     }
 
     setRules(updated);
-    onSaveTimetableRules(updated);
+    onSaveTimetableRules(updated, applyFromWeek, versionNameInput);
   };
 
   // Add rule from quick rule form
@@ -227,7 +233,7 @@ export const TimetableView: React.FC<TimetableViewProps> = ({
   const handleDeleteRule = (id: string) => {
     const updated = rules.filter(r => r.id !== id);
     setRules(updated);
-    onSaveTimetableRules(updated);
+    onSaveTimetableRules(updated, applyFromWeek, versionNameInput);
   };
 
   // Update subject of an existing rule
@@ -243,7 +249,7 @@ export const TimetableView: React.FC<TimetableViewProps> = ({
       return r;
     });
     setRules(updated);
-    onSaveTimetableRules(updated);
+    onSaveTimetableRules(updated, applyFromWeek, versionNameInput);
   };
 
   // Update class of an existing rule
@@ -260,7 +266,7 @@ export const TimetableView: React.FC<TimetableViewProps> = ({
       return r;
     });
     setRules(updated);
-    onSaveTimetableRules(updated);
+    onSaveTimetableRules(updated, applyFromWeek, versionNameInput);
   };
 
   return (
@@ -273,20 +279,78 @@ export const TimetableView: React.FC<TimetableViewProps> = ({
             <span>THỜI KHÓA BIỂU CỐ ĐỊNH</span>
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">
-            Quản lý tất cả môn học trên MỘT thời khóa biểu chung.
+            Quản lý tất cả môn học và chia phiên bản TKB theo tuần áp dụng.
           </p>
         </div>
 
         <button
           onClick={() => {
             onAutoGenerateSchedule();
-            alert('⚡ Đã lập Lịch báo giảng 35 tuần tự động từ Thời khóa biểu cố định!');
+            alert('⚡ Đã lập Lịch báo giảng 35 tuần tự động từ Thời khóa biểu!');
           }}
           className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold shadow-md shadow-emerald-500/20 transition-all flex items-center justify-center space-x-2 shrink-0"
         >
           <Sparkles className="w-4 h-4" />
           <span>⚡ Lập Lịch Báo Giảng Tự Động (35 Tuần)</span>
         </button>
+      </div>
+
+      {/* Timetable Versioning Selector Bar */}
+      <div className="bg-gradient-to-r from-blue-50/80 via-indigo-50/80 to-purple-50/80 dark:from-slate-800 dark:via-slate-800 dark:to-slate-800 p-5 rounded-2xl border border-indigo-200/80 dark:border-indigo-900/60 shadow-xs space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <h3 className="text-sm font-extrabold text-indigo-950 dark:text-indigo-200 flex items-center gap-2">
+              <Clock className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <span>Cấu Hình Phiên Bản TKB Theo Tuần</span>
+            </h3>
+            <p className="text-xs text-indigo-800/80 dark:text-slate-400">
+              Thay đổi TKB từ tuần X sẽ lưu phiên bản mới (X → 35) và bảo vệ TKB các tuần trước đó (1 → X-1).
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-indigo-200 dark:border-slate-700">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">Áp dụng từ tuần:</label>
+              <select
+                value={applyFromWeek}
+                onChange={(e) => setApplyFromWeek(Number(e.target.value))}
+                className="bg-transparent text-xs font-black text-indigo-600 dark:text-indigo-400 focus:outline-none cursor-pointer"
+              >
+                {Array.from({ length: 35 }, (_, i) => i + 1).map((w) => (
+                  <option key={w} value={w}>Tuần {w}</option>
+                ))}
+              </select>
+            </div>
+
+            <input
+              type="text"
+              value={versionNameInput}
+              onChange={(e) => setVersionNameInput(e.target.value)}
+              placeholder="Tên phiên bản (ví dụ: TKB áp dụng từ HK2)..."
+              className="px-3 py-1.5 text-xs font-medium bg-white dark:bg-slate-900 border border-indigo-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white max-w-xs"
+            />
+          </div>
+        </div>
+
+        {/* Display existing versions */}
+        {timetableVersions && timetableVersions.length > 0 && (
+          <div className="pt-2 border-t border-indigo-100 dark:border-slate-700/60 flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Các phiên bản hiện có:</span>
+            {timetableVersions.map((v) => (
+              <span
+                key={v.id}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 border ${
+                  applyFromWeek >= v.fromWeek && applyFromWeek <= v.toWeek
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                }`}
+              >
+                <span>{v.versionName || 'TKB'}</span>
+                <span className="opacity-80 font-mono">(Tuần {v.fromWeek} – {v.toWeek})</span>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Class Management Bar */}

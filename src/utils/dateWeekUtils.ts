@@ -34,16 +34,137 @@ export const saveCustomWeekDatesMap = (map: CustomWeekDatesMap): void => {
   }
 };
 
+// Safe UTC ISO Date parsing to avoid timezone offsets
+export const parseISODateUTC = (isoStr: string): Date => {
+  if (!isoStr) return new Date(Date.UTC(2026, 8, 1));
+  const parts = isoStr.split('-').map(Number);
+  if (parts.length === 3) {
+    return new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+  }
+  return new Date(Date.UTC(2026, 8, 1));
+};
+
+export const formatUTCToISO = (d: Date): string => {
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+export const formatUTCToDDMMYYYY = (d: Date): string => {
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const yyyy = d.getUTCFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+};
+
+export const formatUTCToDDMM = (d: Date): string => {
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  return `${dd}/${mm}`;
+};
+
+export const addDaysUTC = (isoStr: string, days: number): string => {
+  const d = parseISODateUTC(isoStr);
+  d.setUTCDate(d.getUTCDate() + days);
+  return formatUTCToISO(d);
+};
+
+export const diffDaysUTC = (isoStr1: string, isoStr2: string): number => {
+  const d1 = parseISODateUTC(isoStr1);
+  const d2 = parseISODateUTC(isoStr2);
+  const diffMs = d1.getTime() - d2.getTime();
+  return Math.floor(diffMs / (24 * 3600 * 1000));
+};
+
+export interface WeekRangeResult {
+  startDate: string; // YYYY-MM-DD
+  endDate: string;   // YYYY-MM-DD
+  startDateFormatted: string; // DD/MM/YYYY
+  endDateFormatted: string;   // DD/MM/YYYY
+}
+
+export const getWeekRange = (
+  weekNumber: number, 
+  week1StartDate: string = '2026-09-01',
+  customWeekMap?: Record<number, { startDate: string; endDate: string }>
+): WeekRangeResult => {
+  if (customWeekMap && customWeekMap[weekNumber]) {
+    const startISO = customWeekMap[weekNumber].startDate;
+    const endISO = customWeekMap[weekNumber].endDate || addDaysUTC(startISO, 6);
+    const dStart = parseISODateUTC(startISO);
+    const dEnd = parseISODateUTC(endISO);
+    return {
+      startDate: startISO,
+      endDate: endISO,
+      startDateFormatted: formatUTCToDDMMYYYY(dStart),
+      endDateFormatted: formatUTCToDDMMYYYY(dEnd),
+    };
+  }
+
+  const startISO = addDaysUTC(week1StartDate, (weekNumber - 1) * 7);
+  const endISO = addDaysUTC(startISO, 6);
+  const dStart = parseISODateUTC(startISO);
+  const dEnd = parseISODateUTC(endISO);
+  return {
+    startDate: startISO,
+    endDate: endISO,
+    startDateFormatted: formatUTCToDDMMYYYY(dStart),
+    endDateFormatted: formatUTCToDDMMYYYY(dEnd),
+  };
+};
+
+export const getWeekNumberFromDate = (
+  dateInput: string | Date, 
+  week1StartDate: string = '2026-09-01',
+  customWeekMap?: Record<number, { startDate: string; endDate: string }>
+): number | null => {
+  let targetISO = '';
+  if (typeof dateInput === 'string') {
+    if (dateInput.includes('/')) {
+      targetISO = convertDDMMYYYYToISO(dateInput);
+    } else {
+      targetISO = dateInput;
+    }
+  } else if (dateInput instanceof Date) {
+    const yyyy = dateInput.getFullYear();
+    const mm = String(dateInput.getMonth() + 1).padStart(2, '0');
+    const dd = String(dateInput.getDate()).padStart(2, '0');
+    targetISO = `${yyyy}-${mm}-${dd}`;
+  }
+
+  if (!targetISO) return null;
+
+  if (customWeekMap) {
+    for (const wKey in customWeekMap) {
+      const wNum = Number(wKey);
+      const { startDate, endDate } = customWeekMap[wNum];
+      if (startDate && endDate) {
+        if (targetISO >= startDate && targetISO <= endDate) {
+          return wNum;
+        }
+      }
+    }
+  }
+
+  const diffDays = diffDaysUTC(targetISO, week1StartDate);
+  if (diffDays < 0) {
+    return null; // Date is before start of academic year
+  }
+
+  return Math.floor(diffDays / 7) + 1;
+};
+
 export const getAcademicYearStartYear = (academicYear: string = '2025-2026'): number => {
   const match = academicYear.match(/\d{4}/);
   return match ? parseInt(match[0], 10) : 2025;
 };
 
-// Returns Monday of Week 1 for the academic year (September start)
+// Legacy fallback
 export const getWeek1Monday = (academicYear: string = '2025-2026'): Date => {
   const startYear = getAcademicYearStartYear(academicYear);
-  const sept1 = new Date(startYear, 8, 1); // 1st Sept
-  const day = sept1.getDay(); // 0 = Sun, 1 = Mon...
+  const sept1 = new Date(startYear, 8, 1);
+  const day = sept1.getDay();
   const diffToMonday = day === 0 ? 1 : (day === 1 ? 0 : 8 - day);
   const monday = new Date(sept1);
   monday.setDate(sept1.getDate() + diffToMonday);
@@ -51,7 +172,6 @@ export const getWeek1Monday = (academicYear: string = '2025-2026'): Date => {
   return monday;
 };
 
-// Given a weekNumber (1..52) and academicYear, returns Monday and Friday dates
 export const getWeekStartEndDates = (weekNumber: number, academicYear: string = '2025-2026') => {
   const week1Monday = getWeek1Monday(academicYear);
   const monday = new Date(week1Monday);
@@ -66,7 +186,6 @@ export const getWeekStartEndDates = (weekNumber: number, academicYear: string = 
   return { monday, friday, sunday };
 };
 
-// Formats Date to dd/mm/yyyy
 export const formatDateDDMMYYYY = (d: Date): string => {
   const dd = String(d.getDate()).padStart(2, '0');
   const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -74,14 +193,12 @@ export const formatDateDDMMYYYY = (d: Date): string => {
   return `${dd}/${mm}/${yyyy}`;
 };
 
-// Formats Date to dd/mm
 export const formatDateDDMM = (d: Date): string => {
   const dd = String(d.getDate()).padStart(2, '0');
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   return `${dd}/${mm}`;
 };
 
-// Convert YYYY-MM-DD (from <input type="date">) to DD/MM/YYYY
 export const convertISOToDDMMYYYY = (iso: string): string => {
   if (!iso) return '';
   const parts = iso.split('-');
@@ -91,7 +208,6 @@ export const convertISOToDDMMYYYY = (iso: string): string => {
   return iso;
 };
 
-// Convert DD/MM/YYYY to YYYY-MM-DD for <input type="date">
 export const convertDDMMYYYYToISO = (ddmmyyyy: string): string => {
   if (!ddmmyyyy) return '';
   const parts = ddmmyyyy.split('/');
@@ -101,7 +217,6 @@ export const convertDDMMYYYYToISO = (ddmmyyyy: string): string => {
   return ddmmyyyy;
 };
 
-// Get default dates object for a given week
 export const getDefaultWeekDates = (weekNumber: number, academicYear: string = '2025-2026'): CustomWeekDate => {
   const { monday, friday } = getWeekStartEndDates(weekNumber, academicYear);
   
@@ -124,7 +239,6 @@ export const getDefaultWeekDates = (weekNumber: number, academicYear: string = '
   };
 };
 
-// Calculate 5 teaching days (Mon -> Fri) from a given start Monday date
 export const calculateWeek5DaysFromMonday = (startMonday: Date): CustomWeekDate => {
   const d2 = new Date(startMonday);
   const d3 = new Date(startMonday); d3.setDate(startMonday.getDate() + 1);
@@ -145,10 +259,9 @@ export const calculateWeek5DaysFromMonday = (startMonday: Date): CustomWeekDate 
   };
 };
 
-// Propagate custom week start date continuously to subsequent weeks
 export const propagateWeekDatesFrom = (
   fromWeek: number,
-  startISO: string, // YYYY-MM-DD
+  startISO: string,
   academicYear: string = '2025-2026',
   totalWeeks: number = 35
 ): CustomWeekDatesMap => {
@@ -158,8 +271,6 @@ export const propagateWeekDatesFrom = (
 
   for (let w = fromWeek; w <= totalWeeks; w++) {
     map[w] = calculateWeek5DaysFromMonday(currentMonday);
-
-    // Advance to next week's Monday (+7 days from current Monday)
     currentMonday = new Date(currentMonday);
     currentMonday.setDate(currentMonday.getDate() + 7);
   }
@@ -168,7 +279,6 @@ export const propagateWeekDatesFrom = (
   return map;
 };
 
-// Reset custom week dates for fromWeek and all subsequent weeks back to default
 export const resetWeekDatesFrom = (
   fromWeek: number,
   totalWeeks: number = 35
@@ -181,12 +291,23 @@ export const resetWeekDatesFrom = (
   return map;
 };
 
-// Given a weekNumber and optional custom map, return range string
 export const getWeekRangeFormatted = (
   weekNumber: number, 
   academicYear: string = '2025-2026',
-  customMap?: CustomWeekDatesMap
+  customMap?: CustomWeekDatesMap,
+  week1StartDate?: string,
+  customWeekMap?: Record<number, { startDate: string; endDate: string }>
 ): string => {
+  if (customWeekMap && customWeekMap[weekNumber]) {
+    const range = getWeekRange(weekNumber, week1StartDate || '2026-09-01', customWeekMap);
+    return `${range.startDateFormatted.slice(0, 5)} – ${range.endDateFormatted}`;
+  }
+
+  if (week1StartDate) {
+    const range = getWeekRange(weekNumber, week1StartDate);
+    return `${range.startDateFormatted.slice(0, 5)} – ${range.endDateFormatted}`;
+  }
+
   const map = customMap || loadCustomWeekDatesMap();
   if (map[weekNumber]) {
     const custom = map[weekNumber];
@@ -198,13 +319,59 @@ export const getWeekRangeFormatted = (
   return `${formatDateDDMM(monday)} – ${formatDateDDMMYYYY(friday)}`;
 };
 
-// Given a dayOfWeek and weekNumber, get actual date string
+export const getDayOfWeekStrFromUTC = (utcDayIndex: number): string => {
+  switch (utcDayIndex) {
+    case 1: return 'Thứ 2';
+    case 2: return 'Thứ 3';
+    case 3: return 'Thứ 4';
+    case 4: return 'Thứ 5';
+    case 5: return 'Thứ 6';
+    case 6: return 'Thứ 7';
+    case 0: return 'Chủ Nhật';
+    default: return '';
+  }
+};
+
 export const getActualDayDate = (
   weekNumber: number, 
   dayOfWeek: string, 
   academicYear: string = '2025-2026',
-  customMap?: CustomWeekDatesMap
+  customMap?: CustomWeekDatesMap,
+  week1StartDate?: string,
+  customWeekMap?: Record<number, { startDate: string; endDate: string }>
 ): string => {
+  if (customWeekMap && customWeekMap[weekNumber]) {
+    const range = getWeekRange(weekNumber, week1StartDate || '2026-09-01', customWeekMap);
+    const startISO = range.startDate;
+    const targetNorm = dayOfWeek.replace('Thứ Hai', 'Thứ 2').replace('Thứ Ba', 'Thứ 3').replace('Thứ Tư', 'Thứ 4').replace('Thứ Năm', 'Thứ 5').replace('Thứ Sáu', 'Thứ 6').replace('Thứ Bảy', 'Thứ 7');
+
+    for (let i = 0; i < 7; i++) {
+      const currISO = addDaysUTC(startISO, i);
+      const d = parseISODateUTC(currISO);
+      const dayStr = getDayOfWeekStrFromUTC(d.getUTCDay());
+      if (dayStr === targetNorm) {
+        return formatUTCToDDMMYYYY(d);
+      }
+    }
+    return range.startDateFormatted;
+  }
+
+  if (week1StartDate) {
+    const range = getWeekRange(weekNumber, week1StartDate);
+    const startISO = range.startDate;
+    const targetNorm = dayOfWeek.replace('Thứ Hai', 'Thứ 2').replace('Thứ Ba', 'Thứ 3').replace('Thứ Tư', 'Thứ 4').replace('Thứ Năm', 'Thứ 5').replace('Thứ Sáu', 'Thứ 6').replace('Thứ Bảy', 'Thứ 7');
+
+    for (let i = 0; i < 7; i++) {
+      const currISO = addDaysUTC(startISO, i);
+      const d = parseISODateUTC(currISO);
+      const dayStr = getDayOfWeekStrFromUTC(d.getUTCDay());
+      if (dayStr === targetNorm) {
+        return formatUTCToDDMMYYYY(d);
+      }
+    }
+    return range.startDateFormatted;
+  }
+
   const map = customMap || loadCustomWeekDatesMap();
   const custom = map[weekNumber];
   if (custom && custom.dayDates && (custom.dayDates as any)[dayOfWeek]) {
@@ -228,27 +395,6 @@ export const getActualDayDate = (
   return formatDateDDMMYYYY(targetDate);
 };
 
-// Given any arbitrary Date, determine Monday of that week and the school week number
-export const getWeekNumberFromDate = (date: Date, academicYear: string = '2025-2026'): number => {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  
-  // Find Monday of the selected date's week
-  const day = d.getDay();
-  const diffToMon = day === 0 ? -6 : 1 - day;
-  const mondayOfDate = new Date(d);
-  mondayOfDate.setDate(d.getDate() + diffToMon);
-
-  const week1Monday = getWeek1Monday(academicYear);
-  
-  const diffTime = mondayOfDate.getTime() - week1Monday.getTime();
-  const diffWeeks = Math.round(diffTime / (7 * 24 * 3600 * 1000));
-  
-  const weekNum = diffWeeks + 1;
-  return Math.max(1, Math.min(52, weekNum));
-};
-
-// Helper to check if two dates are the same day
 export const isSameDay = (d1: Date, d2: Date): boolean => {
   return (
     d1.getFullYear() === d2.getFullYear() &&

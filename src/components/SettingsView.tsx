@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Settings as SettingsIcon, 
   User, 
@@ -13,16 +13,20 @@ import {
   Sparkles,
   X,
   AlertCircle,
+  AlertTriangle,
+  RotateCcw,
   Sun,
   Moon,
   Info,
   Printer
 } from 'lucide-react';
-import { TeacherProfile, ClassTimetableRule, PrintSettings, DEFAULT_PRINT_SETTINGS } from '../types';
+import { TeacherProfile, ClassTimetableRule, PrintSettings, DEFAULT_PRINT_SETTINGS, AcademicYearConfig, TimetableVersion } from '../types';
 import { ClassSelectDropdown } from './ClassSelectDropdown';
 import { PrintDesignerComponent } from './PrintDesignerComponent';
 import { PRIMARY_SUBJECTS } from '../data/primaryCurriculums';
 import { getSubjectColorStyle } from '../utils/subjectUtils';
+import { getWeekRange, diffDaysUTC, addDaysUTC } from '../utils/dateWeekUtils';
+import { getTimetableVersionForWeek } from '../utils/timetableUtils';
 import { 
   inferGradeFromClassName, 
   normalizeClassName, 
@@ -36,9 +40,12 @@ interface SettingsViewProps {
   teacher: TeacherProfile;
   timetableRules: ClassTimetableRule[];
   printSettings?: PrintSettings;
+  academicYearConfig?: AcademicYearConfig;
+  timetableVersions?: TimetableVersion[];
   onSaveProfile: (profile: TeacherProfile) => void;
   onSaveTimetableRules: (rules: ClassTimetableRule[]) => void;
   onSavePrintSettings?: (settings: PrintSettings) => void;
+  onSaveAcademicYearConfig?: (config: AcademicYearConfig) => void;
   onAutoGenerateSchedule: () => void;
   onOpenPreviewModal?: () => void;
 }
@@ -51,15 +58,66 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   teacher,
   timetableRules,
   printSettings = DEFAULT_PRINT_SETTINGS,
+  academicYearConfig,
+  timetableVersions = [],
   onSaveProfile,
   onSaveTimetableRules,
   onSavePrintSettings,
+  onSaveAcademicYearConfig,
   onAutoGenerateSchedule,
   onOpenPreviewModal,
 }) => {
-  const [activeTab, setActiveTab] = useState<'profile' | 'print_template'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'print_template' | 'academic_week'>('profile');
   const [profileForm, setProfileForm] = useState<TeacherProfile>({ ...teacher });
   const [rules, setRules] = useState<ClassTimetableRule[]>([...timetableRules]);
+  
+  // Academic Year Week Management State
+  const [week1StartDate, setWeek1StartDate] = useState<string>(
+    academicYearConfig?.week1StartDate || '2026-09-01'
+  );
+  const [totalWeeks, setTotalWeeks] = useState<number>(
+    academicYearConfig?.totalWeeks || 35
+  );
+  const [customWeekMap, setCustomWeekMap] = useState<Record<number, { startDate: string; endDate: string }>>(
+    academicYearConfig?.customWeekMap || {}
+  );
+  const [selectedWeekToEdit, setSelectedWeekToEdit] = useState<number>(1);
+  const [editingWeekStartDate, setEditingWeekStartDate] = useState<string>('2026-09-01');
+  const [weekConfigSavedMsg, setWeekConfigSavedMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (academicYearConfig) {
+      setWeek1StartDate(academicYearConfig.week1StartDate || '2026-09-01');
+      setTotalWeeks(academicYearConfig.totalWeeks || 35);
+      setCustomWeekMap(academicYearConfig.customWeekMap || {});
+    }
+  }, [academicYearConfig]);
+
+  useEffect(() => {
+    const range = getWeekRange(selectedWeekToEdit, week1StartDate, customWeekMap);
+    setEditingWeekStartDate(range.startDate);
+  }, [selectedWeekToEdit, week1StartDate]);
+
+  // Validation Warnings Check
+  const validationWarnings = useMemo(() => {
+    const warnings: string[] = [];
+    for (let w = 1; w <= totalWeeks - 1; w++) {
+      const curr = getWeekRange(w, week1StartDate, customWeekMap);
+      const next = getWeekRange(w + 1, week1StartDate, customWeekMap);
+
+      if (next.startDate <= curr.startDate) {
+        warnings.push(`Tuần ${w + 1} (${next.startDateFormatted}) có ngày bắt đầu nhỏ hơn hoặc bằng ngày bắt đầu Tuần ${w} (${curr.startDateFormatted}).`);
+      } else if (next.startDate <= curr.endDate) {
+        warnings.push(`Tuần ${w + 1} (bắt đầu ${next.startDateFormatted}) bị trùng lặp ngày với Tuần ${w} (kết thúc ${curr.endDateFormatted}).`);
+      } else {
+        const gap = diffDaysUTC(next.startDate, curr.endDate) - 1;
+        if (gap > 0) {
+          warnings.push(`Giữa Tuần ${w} (kết thúc ${curr.endDateFormatted}) và Tuần ${w + 1} (bắt đầu ${next.startDateFormatted}) có ${gap} ngày bị bỏ trống.`);
+        }
+      }
+    }
+    return warnings;
+  }, [totalWeeks, week1StartDate, customWeekMap]);
   const [addClassInput, setAddClassInput] = useState('');
   const [addSubjectInput, setAddSubjectInput] = useState('');
   const [selectedSubject, setSelectedSubject] = useState<string>(
@@ -334,10 +392,346 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <Printer className="w-4 h-4" />
             <span>Thiết Kế Mẫu In</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('academic_week')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'academic_week'
+                ? 'bg-white dark:bg-slate-800 text-teal-600 dark:text-teal-400 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Calendar className="w-4 h-4" />
+            <span>Tuần Học</span>
+          </button>
         </div>
       </div>
 
-      {activeTab === 'print_template' ? (
+      {activeTab === 'academic_week' ? (
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-700 pb-4">
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+                  <span>Quản Lý Tuần Học (Năm học {teacher.academicYear || '2026-2027'})</span>
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Mỗi tuần có thể có ngày bắt đầu riêng bằng Date Picker. Lịch báo giảng (weeklySchedules) sẽ liên kết theo weekNumber và hiển thị chính xác khoảng ngày đã cấu hình.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (onSaveAcademicYearConfig) {
+                    onSaveAcademicYearConfig({
+                      academicYear: teacher.academicYear || '2026-2027',
+                      week1StartDate,
+                      totalWeeks,
+                      customWeekMap,
+                      updatedAt: new Date().toISOString()
+                    });
+                    setWeekConfigSavedMsg('Đã lưu cấu hình ngày các tuần học thành công!');
+                    setTimeout(() => setWeekConfigSavedMsg(null), 3000);
+                  }
+                }}
+                className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-2 shrink-0"
+              >
+                <Save className="w-4 h-4" />
+                <span>Lưu Cấu Hình Tuần Học</span>
+              </button>
+            </div>
+
+            {weekConfigSavedMsg && (
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs font-semibold flex items-center gap-2 border border-emerald-200 dark:border-emerald-800">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span>{weekConfigSavedMsg}</span>
+              </div>
+            )}
+
+            {/* General Settings: Week 1 Default & Total Weeks */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4 text-slate-400" />
+                  <span>Mốc Ngày Bắt Đầu Tuần 1 (Gốc Mặc Định)</span>
+                </label>
+                <input
+                  type="date"
+                  value={week1StartDate}
+                  onChange={(e) => setWeek1StartDate(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none transition-all"
+                />
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Các tuần chưa có ngày tùy chỉnh sẽ tự động tính từ mốc Tuần 1 này (mỗi tuần +7 ngày).
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-slate-400" />
+                  <span>Số Tuần Của Năm Học</span>
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={52}
+                  value={totalWeeks}
+                  onChange={(e) => setTotalWeeks(Math.max(1, Math.min(52, parseInt(e.target.value, 10) || 35)))}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none transition-all"
+                />
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Mặc định 35 tuần theo quy định của Bộ GD&ĐT.
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Single Week Configurator Box */}
+            <div className="p-4 bg-teal-50/70 dark:bg-teal-950/30 border border-teal-200/80 dark:border-teal-800/80 rounded-2xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-bold text-teal-900 dark:text-teal-200 flex items-center gap-2 uppercase tracking-wide">
+                  <Sparkles className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                  <span>Cấu Hình Nhanh Ngày Bắt Đầu Cho Từng Tuần</span>
+                </div>
+                {Object.keys(customWeekMap).length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setCustomWeekMap({})}
+                    className="text-[11px] text-rose-600 hover:text-rose-700 dark:text-rose-400 font-bold hover:underline flex items-center gap-1"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Xóa tất cả tùy chỉnh ({Object.keys(customWeekMap).length} tuần)</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+                {/* Select Week Box */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Chọn tuần:</span>
+                  <select
+                    value={selectedWeekToEdit}
+                    onChange={(e) => {
+                      const w = Number(e.target.value);
+                      setSelectedWeekToEdit(w);
+                      const range = getWeekRange(w, week1StartDate, customWeekMap);
+                      setEditingWeekStartDate(range.startDate);
+                    }}
+                    className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none"
+                  >
+                    {Array.from({ length: totalWeeks }, (_, i) => i + 1).map((w) => (
+                      <option key={w} value={w}>
+                        Tuần {w} {customWeekMap[w] ? '★' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Date Picker */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Bắt đầu từ ngày:</span>
+                  <input
+                    type="date"
+                    value={editingWeekStartDate}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEditingWeekStartDate(val);
+                      if (val) {
+                        setCustomWeekMap((prev) => ({
+                          ...prev,
+                          [selectedWeekToEdit]: {
+                            startDate: val,
+                            endDate: addDaysUTC(val, 6)
+                          }
+                        }));
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none"
+                  />
+                </div>
+
+                {/* Calculated 7-Day Range */}
+                <div className="text-xs font-bold text-slate-700 dark:text-slate-200 px-3 py-1.5 bg-teal-100/60 dark:bg-teal-950/60 rounded-lg border border-teal-200 dark:border-teal-800">
+                  Khoảng ngày Tuần {selectedWeekToEdit}: <span className="text-teal-700 dark:text-teal-300">{getWeekRange(selectedWeekToEdit, week1StartDate, customWeekMap).startDateFormatted} → {getWeekRange(selectedWeekToEdit, week1StartDate, customWeekMap).endDateFormatted}</span>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 ml-auto">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newMap = { ...customWeekMap };
+                      let currStart = editingWeekStartDate;
+                      for (let w = selectedWeekToEdit; w <= totalWeeks; w++) {
+                        newMap[w] = {
+                          startDate: currStart,
+                          endDate: addDaysUTC(currStart, 6)
+                        };
+                        currStart = addDaysUTC(currStart, 7);
+                      }
+                      setCustomWeekMap(newMap);
+                    }}
+                    className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs"
+                    title="Tự động tính ngày nối tiếp các tuần tiếp theo từ tuần này (+7 ngày mỗi tuần)"
+                  >
+                    <span>Nối tiếp các tuần sau</span>
+                  </button>
+
+                  {customWeekMap[selectedWeekToEdit] && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomWeekMap((prev) => {
+                          const next = { ...prev };
+                          delete next[selectedWeekToEdit];
+                          return next;
+                        });
+                        const range = getWeekRange(selectedWeekToEdit, week1StartDate, {});
+                        setEditingWeekStartDate(range.startDate);
+                      }}
+                      className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition-all"
+                    >
+                      <span>Khôi phục mặc định</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Validation Warnings Box */}
+            {validationWarnings.length > 0 && (
+              <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-2xl space-y-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-amber-800 dark:text-amber-300">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>Cảnh Báo Cấu Hình Ngày ({validationWarnings.length} vấn đề):</span>
+                </div>
+                <ul className="list-disc list-inside text-xs text-amber-700 dark:text-amber-300 space-y-1 pl-1 max-h-36 overflow-y-auto">
+                  {validationWarnings.map((warn, idx) => (
+                    <li key={idx}>{warn}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Detailed Weeks Table */}
+            <div className="space-y-3 pt-4 border-t border-slate-100 dark:border-slate-700/60">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                  <Info className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                  <span>Danh Sách Tất Cả {totalWeeks} Tuần Trong Năm Học</span>
+                </h4>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Đã tùy chỉnh: <strong className="text-teal-600 dark:text-teal-400">{Object.keys(customWeekMap).length}</strong> / {totalWeeks} tuần
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[480px] overflow-y-auto pr-2">
+                {Array.from({ length: totalWeeks }, (_, i) => i + 1).map((wNum) => {
+                  const range = getWeekRange(wNum, week1StartDate, customWeekMap);
+                  const isCustom = Boolean(customWeekMap[wNum]);
+                  const activeVersion = getTimetableVersionForWeek(
+                    timetableVersions,
+                    teacher.academicYear || '2026-2027',
+                    wNum
+                  );
+
+                  return (
+                    <div
+                      key={wNum}
+                      className={`p-3.5 rounded-xl border transition-all text-xs space-y-2 ${
+                        isCustom
+                          ? 'bg-teal-50/40 dark:bg-teal-950/20 border-teal-300/80 dark:border-teal-700/80 shadow-xs'
+                          : 'bg-slate-50 dark:bg-slate-900/60 border-slate-200/80 dark:border-slate-700/60'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-extrabold text-slate-900 dark:text-white text-sm">
+                            Tuần {wNum}
+                          </span>
+                          {isCustom ? (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300 border border-teal-300 dark:border-teal-800">
+                              Tùy chỉnh
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-200/70 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                              Mặc định
+                            </span>
+                          )}
+                        </div>
+
+                        {activeVersion ? (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                            {activeVersion.versionName}
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 rounded-md text-[10px] text-slate-400 dark:text-slate-500">
+                            Chưa TKB
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2 bg-white dark:bg-slate-800/80 p-2 rounded-lg border border-slate-200/60 dark:border-slate-700/60">
+                        <div className="space-y-1 w-full">
+                          <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">
+                            Ngày bắt đầu:
+                          </label>
+                          <input
+                            type="date"
+                            value={range.startDate}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val) {
+                                setCustomWeekMap((prev) => ({
+                                  ...prev,
+                                  [wNum]: {
+                                    startDate: val,
+                                    endDate: addDaysUTC(val, 6)
+                                  }
+                                }));
+                              }
+                            }}
+                            className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-xs font-bold text-slate-900 dark:text-white"
+                          />
+                        </div>
+
+                        <div className="space-y-1 shrink-0 text-right">
+                          <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase block">
+                            Khoảng ngày:
+                          </label>
+                          <span className="text-[11px] font-extrabold text-teal-700 dark:text-teal-300 block">
+                            {range.startDateFormatted} → {range.endDateFormatted}
+                          </span>
+                        </div>
+                      </div>
+
+                      {isCustom && (
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCustomWeekMap((prev) => {
+                                const next = { ...prev };
+                                delete next[wNum];
+                                return next;
+                              });
+                            }}
+                            className="text-[10px] font-bold text-rose-600 hover:text-rose-700 dark:text-rose-400 hover:underline"
+                          >
+                            Xóa tùy chỉnh
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : activeTab === 'print_template' ? (
         <PrintDesignerComponent
           teacher={teacher}
           settings={printSettings}

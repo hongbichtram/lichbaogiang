@@ -27,6 +27,14 @@ export interface TeacherProfile {
   semester: string;
 }
 
+export interface AcademicYearConfig {
+  academicYear: string;
+  week1StartDate: string; // YYYY-MM-DD
+  totalWeeks: number; // default 35
+  customWeekMap?: Record<number, { startDate: string; endDate: string }>; // YYYY-MM-DD
+  updatedAt?: string;
+}
+
 export interface PPCTItem {
   id: string;
   week: number;
@@ -150,6 +158,19 @@ export interface ClassTimetableRule {
   dayOfWeek: 'Thứ 2' | 'Thứ 3' | 'Thứ 4' | 'Thứ 5' | 'Thứ 6';
   session?: 'Sáng' | 'Chiều';
   period: number; // 1..10
+}
+
+export interface TimetableVersion {
+  id: string;
+  uid: string;
+  academicYear: string;
+  versionName: string;
+  fromWeek: number;
+  toWeek: number;
+  rules: ClassTimetableRule[];
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
 }
 
 export interface ScheduleFilter {

@@ -1,10 +1,41 @@
-import { ClassTimetableRule } from '../types';
+import { ClassTimetableRule, TimetableVersion } from '../types';
 import { getNormalizedSession, getNormalizedPeriod } from './classUtils';
+import { getWeekNumberFromDate } from './dateWeekUtils';
 
 /**
- * Gets the timetable rule (TKB) for a given teaching slot.
- * Signature: getScheduleForTeachingSlot(uidOrRules, dayOfWeek, period, session?)
- * Supports passing either `uid` (string) or `timetableRules` (ClassTimetableRule[]).
+ * Finds the TimetableVersion matching a specific academic year and week number.
+ * Returns null if no version covers the week.
+ */
+export function getTimetableVersionForWeek(
+  versions: TimetableVersion[],
+  academicYear: string,
+  weekNumber: number
+): TimetableVersion | null {
+  if (!versions || versions.length === 0) return null;
+
+  const filtered = versions.filter(v => v.academicYear === academicYear);
+  if (filtered.length === 0) return null;
+
+  const match = filtered.find(v => weekNumber >= v.fromWeek && weekNumber <= v.toWeek);
+  return match || null;
+}
+
+/**
+ * Finds the TimetableVersion matching a specific date.
+ */
+export function getTimetableVersionForDate(
+  versions: TimetableVersion[],
+  academicYear: string,
+  dateInput: string | Date,
+  week1StartDate: string
+): TimetableVersion | null {
+  const weekNumber = getWeekNumberFromDate(dateInput, week1StartDate);
+  if (weekNumber === null) return null;
+  return getTimetableVersionForWeek(versions, academicYear, weekNumber);
+}
+
+/**
+ * Gets the timetable rule (TKB) for a given teaching slot from a set of rules.
  */
 export function getScheduleForTeachingSlot(
   uidOrRules: string | ClassTimetableRule[],

@@ -17,8 +17,15 @@ export const getDayDisplayName = (day: string): string => {
 
 import { getActualDayDate } from './dateWeekUtils';
 
-export const getWeekDayDate = (weekNumber: number, dayOfWeek: string, academicYear: string = '2025-2026'): string => {
-  return getActualDayDate(weekNumber, dayOfWeek, academicYear);
+export const getWeekDayDate = (
+  weekNumber: number, 
+  dayOfWeek: string, 
+  academicYear: string = '2025-2026',
+  customMap?: any,
+  week1StartDate?: string,
+  customWeekMap?: Record<number, { startDate: string; endDate: string }>
+): string => {
+  return getActualDayDate(weekNumber, dayOfWeek, academicYear, customMap, week1StartDate, customWeekMap);
 };
 
 export interface DayGroup {

@@ -19,12 +19,11 @@ import {
   CheckCircle2,
   AlertTriangle
 } from 'lucide-react';
-import { ScheduleItem, ScheduleFilter, LessonStatus, PPCTCurriculum, TeacherProfile, PrintSettings, ClassTimetableRule } from '../types';
+import { ScheduleItem, ScheduleFilter, LessonStatus, PPCTCurriculum, TeacherProfile, PrintSettings, ClassTimetableRule, TimetableVersion, AcademicYearConfig } from '../types';
 import { LessonDrawer } from './LessonDrawer';
 import { AddLessonModal } from './AddLessonModal';
 import { PrintPreviewModal } from './PrintPreviewModal';
 import { DatePickerModal } from './DatePickerModal';
-import { EditWeekDateModal } from './EditWeekDateModal';
 import { getWeekRangeFormatted, loadCustomWeekDatesMap } from '../utils/dateWeekUtils';
 import { getWeekDayDate } from '../utils/exportUtils';
 import { formatTableSessionPeriod, getNormalizedSession, getNormalizedPeriod, formatLessonDisplayTitle } from '../utils/classUtils';
@@ -36,6 +35,8 @@ interface ScheduleViewProps {
   schedules: ScheduleItem[];
   curriculums?: PPCTCurriculum[];
   timetableRules?: ClassTimetableRule[];
+  timetableVersions?: TimetableVersion[];
+  academicYearConfig?: AcademicYearConfig;
   teacherAssignedClasses?: string[];
   currentWeek: number;
   printSettings?: PrintSettings;
@@ -52,7 +53,7 @@ interface ScheduleViewProps {
   onUndo: () => void;
   onRedo: () => void;
   onNavigate?: (tab: string) => void;
-  onGenerateFromTKB?: (weekNumber?: number) => { createdCount: number; skippedCount: number };
+  onGenerateFromTKB?: (weekNumber?: number) => { createdCount: number; skippedCount: number; noVersionFound?: boolean };
 }
 
 
@@ -67,6 +68,8 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
   schedules,
   curriculums = [],
   timetableRules = [],
+  timetableVersions = [],
+  academicYearConfig,
   teacherAssignedClasses = DEFAULT_ASSIGNED_CLASSES,
   currentWeek,
   printSettings,
@@ -104,7 +107,6 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
-  const [isEditWeekDateOpen, setIsEditWeekDateOpen] = useState(false);
   const [isConfirmGenModalOpen, setIsConfirmGenModalOpen] = useState(false);
   const [customWeekDatesMap, setCustomWeekDatesMap] = useState(() => loadCustomWeekDatesMap());
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -118,7 +120,11 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
     setIsConfirmGenModalOpen(false);
     if (onGenerateFromTKB) {
       const res = onGenerateFromTKB(currentWeek);
-      showToast(`✅ Đã tạo ${res.createdCount} tiết dạy từ TKB. (${res.skippedCount} tiết đã có giữ nguyên)`);
+      if (res.noVersionFound) {
+        showToast(`⚠️ Chưa có Thời khóa biểu áp dụng cho Tuần ${currentWeek}. Vui lòng tạo/cập nhật TKB cố định cho tuần này.`);
+      } else {
+        showToast(`✅ Đã tạo ${res.createdCount} tiết dạy từ TKB. (${res.skippedCount} tiết đã có giữ nguyên)`);
+      }
     } else {
       showToast('✅ Đã khởi tạo lịch báo giảng từ Thời khóa biểu tuần này.');
     }
@@ -250,22 +256,13 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
                     TUẦN {currentWeek}
                   </span>
                   <span className="text-[10px] text-indigo-600 dark:text-indigo-300 font-extrabold bg-indigo-500/15 px-1.5 py-0.5 rounded-md">
-                    {getWeekRangeFormatted(currentWeek, teacher?.academicYear || '2025-2026', customWeekDatesMap)}
+                    {getWeekRangeFormatted(currentWeek, teacher?.academicYear || '2025-2026', customWeekDatesMap, academicYearConfig?.week1StartDate, academicYearConfig?.customWeekMap)}
                   </span>
                 </div>
                 <div className="text-[10px] text-indigo-500 dark:text-indigo-400 font-bold flex items-center space-x-0.5">
                   <span>Chọn ngày ▼</span>
                 </div>
               </div>
-            </button>
-
-            <button
-              onClick={() => setIsEditWeekDateOpen(true)}
-              className="px-2.5 py-2 bg-white dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-slate-700 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-bold border border-indigo-200 dark:border-slate-700 transition-colors flex items-center space-x-1 shrink-0"
-              title="Chỉnh sửa ngày thực tế của tuần"
-            >
-              <Edit2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-              <span className="hidden sm:inline">Chỉnh ngày</span>
             </button>
 
             <button
@@ -411,7 +408,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
             {/* Table Body */}
             <tbody className="divide-y divide-slate-200/80 dark:divide-slate-800">
               {DAYS_OF_WEEK.map((day) => {
-                const dateStr = getWeekDayDate(currentWeek, day, teacher?.academicYear || '2025-2026');
+                const dateStr = getWeekDayDate(currentWeek, day, teacher?.academicYear || '2025-2026', customWeekDatesMap, academicYearConfig?.week1StartDate, academicYearConfig?.customWeekMap);
                 const dayItems = filteredSchedules
                   .filter(s => s.dayOfWeek === day)
                   .sort((a, b) => {
@@ -648,19 +645,6 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
         }}
         academicYear={teacher?.academicYear || '2025-2026'}
         schedules={schedules}
-      />
-
-      {/* Edit Week Date Modal */}
-      <EditWeekDateModal
-        isOpen={isEditWeekDateOpen}
-        onClose={() => setIsEditWeekDateOpen(false)}
-        currentWeek={currentWeek}
-        academicYear={teacher?.academicYear || '2025-2026'}
-        schedules={schedules}
-        onSaved={() => {
-          setCustomWeekDatesMap(loadCustomWeekDatesMap());
-          showToast(`Đã cập nhật ngày thực tế cho Tuần ${currentWeek}`);
-        }}
       />
 
       {/* Toast Notification */}
