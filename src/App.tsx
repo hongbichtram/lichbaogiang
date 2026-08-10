@@ -15,7 +15,8 @@ import { TeacherProfile, ScheduleItem, PPCTCurriculum, SharedCurriculum, ClassTi
 import { isConfiguredAdminUid } from './config/adminConfig';
 import { fetchSystemConfig } from './services/adminService';
 import { SystemAnnouncementBanner } from './components/SystemAnnouncementBanner';
-import { Ban, ShieldAlert, LogOut as LogOutIcon } from 'lucide-react';
+import { LoginScreen } from './components/auth/LoginScreen';
+import { Ban, ShieldAlert, LogOut as LogOutIcon, Loader2, Calendar } from 'lucide-react';
 import { PREDEFINED_PPCTS } from './data/primaryCurriculums';
 import { 
   auth, 
@@ -288,6 +289,7 @@ export default function App() {
   const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'idle'>('saved');
   const [authUser, setAuthUser] = useState<any>(null);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
+  const [authLoading, setAuthLoading] = useState<boolean>(true);
   const [systemConfig, setSystemConfig] = useState<SystemConfig | null>(null);
 
   // Load system config on mount and tab switch
@@ -427,7 +429,11 @@ export default function App() {
           console.error('Failed to sync Firestore data on login:', err);
         } finally {
           setAutoSaveStatus('saved');
+          setAuthLoading(false);
         }
+      } else {
+        setAppUser(null);
+        setAuthLoading(false);
       }
     });
     return () => unsubscribe();
@@ -818,6 +824,24 @@ export default function App() {
       localStorage.setItem('smart_schedule_timetable_versions', JSON.stringify(combined));
     }
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#090D16] flex flex-col items-center justify-center space-y-4 text-slate-100 font-sans">
+        <div className="p-4 rounded-3xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 shadow-2xl shadow-indigo-500/20 animate-pulse">
+          <Calendar className="w-10 h-10" />
+        </div>
+        <div className="flex items-center space-x-2 text-indigo-400 text-xs font-bold tracking-wider uppercase">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span>Đang khởi tạo hệ thống...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!authUser) {
+    return <LoginScreen darkMode={darkMode} />;
+  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0B1120] text-slate-800 dark:text-slate-100 font-sans transition-colors duration-200 flex flex-col">

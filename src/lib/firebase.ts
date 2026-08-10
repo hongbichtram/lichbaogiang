@@ -3,6 +3,7 @@ import {
   getAuth, 
   GoogleAuthProvider, 
   signInWithPopup, 
+  signInWithEmailAndPassword,
   signOut as firebaseSignOut, 
   onAuthStateChanged, 
   User 
@@ -94,6 +95,18 @@ export const signInWithGoogle = async () => {
     const code = error?.code || 'unknown';
     const msg = error?.message || String(error);
     console.error(`Firebase Auth Error Code: ${code}, Message: ${msg}`);
+    throw error;
+  }
+};
+
+export const loginWithEmailAndPassword = async (email: string, pass: string) => {
+  console.log('EMAIL AUTH LOGIN START');
+  try {
+    const result = await signInWithEmailAndPassword(auth, email, pass);
+    console.log('EMAIL AUTH LOGIN SUCCESS:', result.user.uid);
+    return result.user;
+  } catch (error: any) {
+    console.error('EMAIL AUTH LOGIN ERROR:', error);
     throw error;
   }
 };
