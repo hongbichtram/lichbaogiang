@@ -13,11 +13,28 @@ export function getTimetableVersionForWeek(
 ): TimetableVersion | null {
   if (!versions || versions.length === 0) return null;
 
-  const filtered = versions.filter(v => v.academicYear === academicYear);
-  if (filtered.length === 0) return null;
+  const normYear = academicYear ? academicYear.replace(/\s+/g, '') : '';
+
+  let filtered = versions.filter(v => {
+    const vYear = v.academicYear ? v.academicYear.replace(/\s+/g, '') : '';
+    return vYear === normYear;
+  });
+
+  if (filtered.length === 0) {
+    filtered = versions;
+  }
 
   const match = filtered.find(v => weekNumber >= v.fromWeek && weekNumber <= v.toWeek);
-  return match || null;
+  if (match) return match;
+
+  // Fallback: If no version explicitly covers weekNumber, pick closest version
+  const sorted = [...filtered].sort((a, b) => a.fromWeek - b.fromWeek);
+  if (sorted.length > 0) {
+    if (weekNumber < sorted[0].fromWeek) return sorted[0];
+    if (weekNumber > sorted[sorted.length - 1].toWeek) return sorted[sorted.length - 1];
+  }
+
+  return null;
 }
 
 /**

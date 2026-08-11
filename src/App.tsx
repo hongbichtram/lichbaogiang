@@ -583,7 +583,6 @@ export default function App() {
     const year = teacher.academicYear || '2025-2026';
     const weeksToProcess = weekNumber ? [weekNumber] : Array.from({ length: 35 }, (_, i) => i + 1);
     const existing = [...schedules];
-    const newItems: ScheduleItem[] = [];
     let createdCount = 0;
     let skippedCount = 0;
 
@@ -594,32 +593,32 @@ export default function App() {
       let activeRules: ClassTimetableRule[] = [];
       if (timetableVersions && timetableVersions.length > 0) {
         const ver = getTimetableVersionForWeek(timetableVersions, year, w);
-        if (!ver) {
-          if (weekNumber) {
-            return { createdCount: 0, skippedCount: 0, noVersionFound: true };
-          }
-          continue;
+        if (ver && ver.rules) {
+          activeRules = ver.rules;
+        } else {
+          activeRules = timetableRules;
         }
-        activeRules = ver.rules;
       } else {
         activeRules = timetableRules;
       }
 
       if (!activeRules || activeRules.length === 0) continue;
 
-      activeRules.forEach((rule, idx) => {
+      // Filter activeRules by teacher.subjects
+      const matchingRules = teacherSubjects.length > 0
+        ? activeRules.filter(r => r.subject && teacherSubjects.includes(r.subject.trim().toLowerCase()))
+        : activeRules;
+
+      matchingRules.forEach((rule, idx) => {
         const normSession = getNormalizedSession(rule);
         const normPeriod = getNormalizedPeriod(rule);
-
         const ruleSubjectNorm = (rule.subject || '').trim().toLowerCase();
-        
-        // When teacher has configured subjects, filter out subjects not taught by teacher
-        if (teacherSubjects.length > 0 && !teacherSubjects.includes(ruleSubjectNorm)) {
-          return; // Skip rules for subjects not selected by teacher
-        }
+
+        const curr = curriculums.find(c => c.grade === rule.grade && c.subject?.trim().toLowerCase() === ruleSubjectNorm);
+        const ppctItem = curr?.items.find(i => i.week === w) || curr?.items.find(i => i.periodNumber === w);
 
         // Check if an item already exists for this slot in week w
-        const exists = existing.some(s => 
+        const existingIdx = existing.findIndex(s => 
           s.weekNumber === w &&
           s.dayOfWeek === rule.dayOfWeek &&
           getNormalizedSession(s) === normSession &&
@@ -627,46 +626,61 @@ export default function App() {
           s.className === rule.className
         );
 
-        if (exists) {
-          skippedCount++;
-          return; // Skip duplicate! Keep existing item unchanged.
+        if (existingIdx >= 0) {
+          const item = existing[existingIdx];
+          const itemSubNorm = (item.subject || '').trim().toLowerCase();
+
+          if (itemSubNorm === ruleSubjectNorm) {
+            skippedCount++;
+          } else {
+            // TKB version changed subject for this slot -> Update existing item to new subject & PPCT
+            existing[existingIdx] = {
+              ...item,
+              subject: rule.subject,
+              grade: rule.grade,
+              lessonTitle: ppctItem ? ppctItem.title : `Bài học Tuần ${w} môn ${rule.subject}`,
+              topic: ppctItem?.topic,
+              ppctPeriod: ppctItem ? ppctItem.periodNumber : w,
+              requirements: ppctItem?.requirements,
+              updatedAt: new Date().toISOString(),
+            };
+            createdCount++;
+          }
+        } else {
+          // Create new item for this slot
+          const dayClean = (rule.dayOfWeek || 'day').replace(/\s+/g, '');
+          const ruleIdPart = rule.id || `${rule.className}-${rule.subject}-${idx}`;
+
+          const createdItem: ScheduleItem = {
+            id: `gen-${ruleIdPart}-${dayClean}-p${normPeriod}-w${w}-${Date.now()}`,
+            teacherId: teacher.uid,
+            curriculumId: curr?.id,
+            lessonId: ppctItem?.id,
+            academicYear: year,
+            semester: teacher.semester || 'Học kỳ I',
+            weekNumber: w,
+            dayOfWeek: rule.dayOfWeek,
+            session: normSession,
+            period: normPeriod,
+            className: rule.className,
+            subject: rule.subject,
+            grade: rule.grade,
+            lessonTitle: ppctItem ? ppctItem.title : `Bài học Tuần ${w} môn ${rule.subject}`,
+            topic: ppctItem?.topic,
+            ppctPeriod: ppctItem ? ppctItem.periodNumber : w,
+            status: w < currentWeek ? 'completed' : w === currentWeek ? 'preparing' : 'unprepared',
+            requirements: ppctItem?.requirements,
+            updatedAt: new Date().toISOString(),
+          };
+
+          existing.push(createdItem);
+          createdCount++;
         }
-
-        const curr = curriculums.find(c => c.grade === rule.grade && c.subject?.trim().toLowerCase() === ruleSubjectNorm);
-        const ppctItem = curr?.items.find(i => i.week === w) || curr?.items.find(i => i.periodNumber === w);
-
-        const dayClean = (rule.dayOfWeek || 'day').replace(/\s+/g, '');
-        const ruleIdPart = rule.id || `${rule.className}-${rule.subject}-${idx}`;
-
-        const createdItem: ScheduleItem = {
-          id: `gen-${ruleIdPart}-${dayClean}-p${normPeriod}-w${w}-${Date.now()}`,
-          teacherId: teacher.uid,
-          curriculumId: curr?.id,
-          lessonId: ppctItem?.id,
-          academicYear: year,
-          semester: teacher.semester || 'Học kỳ I',
-          weekNumber: w,
-          dayOfWeek: rule.dayOfWeek,
-          session: normSession,
-          period: normPeriod,
-          className: rule.className,
-          subject: rule.subject,
-          grade: rule.grade,
-          lessonTitle: ppctItem ? ppctItem.title : `Bài học Tuần ${w} môn ${rule.subject}`,
-          topic: ppctItem?.topic,
-          ppctPeriod: ppctItem ? ppctItem.periodNumber : w,
-          status: w < currentWeek ? 'completed' : w === currentWeek ? 'preparing' : 'unprepared',
-          requirements: ppctItem?.requirements,
-          updatedAt: new Date().toISOString(),
-        };
-
-        newItems.push(createdItem);
-        createdCount++;
       });
     }
 
-    if (newItems.length > 0) {
-      updateSchedulesWithHistory([...existing, ...newItems]);
+    if (createdCount > 0) {
+      updateSchedulesWithHistory(existing);
     }
 
     return { createdCount, skippedCount, noVersionFound: false };
