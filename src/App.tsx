@@ -252,6 +252,7 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setAuthUser(user);
       if (user) {
+        console.log(`[LOAD] currentUser.uid: ${user.uid}`);
         setAutoSaveStatus('saving');
         try {
           // Sync user role and status in users/{uid} collection
@@ -270,38 +271,49 @@ export default function App() {
             fetchAcademicYearConfigFromFirestore(user.uid, year),
           ]);
 
-          const hasRemoteData = !!(fsTeacherData.profile || fsVersions.length > 0 || fsPPCTs || fsSchedules || fsCustomDates || fsPrintSettings || fsConfig);
+          console.log(`[LOAD] weeklySchedules from Firestore: ${fsSchedules ? 'YES' : 'NO'}`);
+          console.log(`[LOAD] weeklySchedules count: ${fsSchedules ? fsSchedules.length : 0}`);
+
+          let activeTeacher: TeacherProfile = teacher;
+          let activeRules: ClassTimetableRule[] = timetableRules;
+          let activeVersions: TimetableVersion[] = timetableVersions;
+
+          const hasRemoteData = !!(fsTeacherData.profile || (fsVersions && fsVersions.length > 0) || fsPPCTs || (fsSchedules && fsSchedules.length > 0) || fsCustomDates || fsPrintSettings || fsConfig);
 
           if (hasRemoteData) {
             // Firestore has existing data for this teacher -> load remote state
             if (fsTeacherData.profile) {
-              setTeacher(fsTeacherData.profile);
-              localStorage.setItem('smart_schedule_teacher', JSON.stringify(fsTeacherData.profile));
+              activeTeacher = { ...fsTeacherData.profile, uid: user.uid };
+              setTeacher(activeTeacher);
+              localStorage.setItem('smart_schedule_teacher', JSON.stringify(activeTeacher));
             }
             if (fsConfig) {
               setAcademicYearConfig(fsConfig);
               localStorage.setItem('smart_schedule_academic_year_config', JSON.stringify(fsConfig));
             }
-            if (fsTeacherData.rules) {
-              setTimetableRules(fsTeacherData.rules);
-              localStorage.setItem('smart_schedule_rules', JSON.stringify(fsTeacherData.rules));
+            if (fsTeacherData.rules && fsTeacherData.rules.length > 0) {
+              activeRules = fsTeacherData.rules;
+              setTimetableRules(activeRules);
+              localStorage.setItem('smart_schedule_rules', JSON.stringify(activeRules));
             }
 
             // Sync Timetable Versions
             if (fsVersions && fsVersions.length > 0) {
-              setTimetableVersions(fsVersions);
-              localStorage.setItem('smart_schedule_timetable_versions', JSON.stringify(fsVersions));
-            } else if (fsTeacherData.rules && fsTeacherData.rules.length > 0) {
+              activeVersions = fsVersions;
+              setTimetableVersions(activeVersions);
+              localStorage.setItem('smart_schedule_timetable_versions', JSON.stringify(activeVersions));
+            } else if (activeRules && activeRules.length > 0) {
               // Migration: User has rules in teachers/{uid}.rules but no timetableVersions subcollection yet
               console.log('MIGRATION: Auto-creating initial timetableVersion from teachers/{uid}.rules');
-              const year = fsTeacherData.profile?.academicYear || teacher.academicYear || '2025-2026';
+              const vYear = activeTeacher.academicYear || '2025-2026';
               const migrated = await saveOrSplitTimetableVersionInFirestore(
                 user.uid,
-                year,
+                vYear,
                 1,
-                fsTeacherData.rules,
+                activeRules,
                 'Thời khóa biểu ban đầu'
               );
+              activeVersions = migrated;
               setTimetableVersions(migrated);
               localStorage.setItem('smart_schedule_timetable_versions', JSON.stringify(migrated));
             }
@@ -310,11 +322,47 @@ export default function App() {
               setCurriculums(fsPPCTs);
               localStorage.setItem('smart_schedule_ppcts', JSON.stringify(fsPPCTs));
             }
-            if (fsSchedules) {
+
+            // Load Weekly Schedules from Firestore (or LocalStorage fallback)
+            if (fsSchedules && fsSchedules.length > 0) {
+              // Priority 1: Remote Firestore schedule items exist -> LOAD IT
               const sanitized = ensureUniqueScheduleIds(fsSchedules);
               setSchedules(sanitized);
               localStorage.setItem('smart_schedule_items', JSON.stringify(sanitized));
+            } else {
+              // Firestore has no weeklySchedules (or empty array).
+              // Check if localStorage has valid schedule items belonging to this teacher
+              const savedLocal = localStorage.getItem('smart_schedule_items');
+              let localItems: ScheduleItem[] = [];
+              if (savedLocal) {
+                try {
+                  localItems = JSON.parse(savedLocal);
+                } catch (e) {
+                  localItems = [];
+                }
+              }
+
+              if (localItems && localItems.length > 0) {
+                // Priority 2: Use existing local schedules and sync to Firestore
+                const sanitized = ensureUniqueScheduleIds(localItems);
+                setSchedules(sanitized);
+                localStorage.setItem('smart_schedule_items', JSON.stringify(sanitized));
+                await saveSchedulesToFirestore(user.uid, sanitized);
+                console.log(`[SAVE] weeklySchedules count: ${sanitized.length}`);
+              } else {
+                // Priority 3: First time for this teacher without any schedules anywhere -> generate initial schedules ONCE
+                console.log('[GENERATE] generateInitialSchedules called');
+                const initial = generateInitialSchedules(activeTeacher, activeRules, activeVersions);
+                const sanitized = ensureUniqueScheduleIds(initial);
+                setSchedules(sanitized);
+                localStorage.setItem('smart_schedule_items', JSON.stringify(sanitized));
+                if (sanitized.length > 0) {
+                  await saveSchedulesToFirestore(user.uid, sanitized);
+                  console.log(`[SAVE] weeklySchedules count: ${sanitized.length}`);
+                }
+              }
             }
+
             if (fsCustomDates) {
               saveCustomWeekDatesMap(fsCustomDates);
             }
@@ -347,15 +395,25 @@ export default function App() {
             setTimetableVersions(initialVersions);
             localStorage.setItem('smart_schedule_timetable_versions', JSON.stringify(initialVersions));
 
+            let initialSchedules = schedules;
+            if (!initialSchedules || initialSchedules.length === 0) {
+              console.log('[GENERATE] generateInitialSchedules called');
+              initialSchedules = generateInitialSchedules(updatedProfile, timetableRules, initialVersions);
+              setSchedules(initialSchedules);
+              localStorage.setItem('smart_schedule_items', JSON.stringify(initialSchedules));
+            }
+
             await Promise.all([
               saveTeacherProfileToFirestore(user.uid, updatedProfile, timetableRules),
               savePPCTsToFirestore(user.uid, curriculums),
-              saveSchedulesToFirestore(user.uid, schedules),
+              saveSchedulesToFirestore(user.uid, initialSchedules),
               saveCustomWeekDatesToFirestore(user.uid, localCustomDates),
               savePrintSettingsToFirestore(user.uid, printSettings),
             ]);
+            console.log(`[SAVE] weeklySchedules count: ${initialSchedules.length}`);
           }
 
+          console.log('[LOAD] data initialization completed');
         } catch (err) {
           console.error('Failed to sync Firestore data on login:', err);
         } finally {
@@ -378,8 +436,10 @@ export default function App() {
     setRedoStack([]);
     setSchedules(sanitized);
     localStorage.setItem('smart_schedule_items', JSON.stringify(sanitized));
-    if (authUser?.uid) {
-      saveSchedulesToFirestore(authUser.uid, sanitized);
+    const currentUid = authUser?.uid || auth.currentUser?.uid;
+    if (currentUid) {
+      saveSchedulesToFirestore(currentUid, sanitized);
+      console.log(`[SAVE] weeklySchedules count: ${sanitized.length}`);
     } else {
       console.warn('SAVE SCHEDULE SKIPPED: User is not logged in (authUser is null). Log in to save to Cloud Firestore.');
     }
