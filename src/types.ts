@@ -137,6 +137,8 @@ export interface ScheduleItem {
   gameIdeas?: string; // Gợi ý trò chơi
   notes?: string; // Ghi chú
   date?: string; // YYYY-MM-DD
+  generatedFromTKB?: boolean; // True if auto-generated from TimetableVersion
+  source?: 'timetable' | 'manual'; // Origin of schedule item
   updatedAt: string;
 }
 

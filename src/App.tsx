@@ -71,22 +71,27 @@ const DEFAULT_RULES: ClassTimetableRule[] = [
   { id: 'r8', className: '4A2', grade: 'Khối 4', subject: 'Toán', dayOfWeek: 'Thứ 6', period: 1 },
 ];
 
-// Generate initial seed schedules matching teacher's registered subjects
+// Generate initial seed schedules matching teacher's registered subjects and active TimetableVersions
 function generateInitialSchedules(teacherProfile?: TeacherProfile, rulesList?: ClassTimetableRule[], timetableVersions?: TimetableVersion[]): ScheduleItem[] {
   const items: ScheduleItem[] = [];
   const profile = teacherProfile || DEFAULT_TEACHER;
-  const defaultRules = rulesList || DEFAULT_RULES;
   const year = profile.academicYear || '2025-2026';
   
   const teacherSubjects = (profile.subjects || []).map(s => s.trim().toLowerCase());
 
   for (let w = 1; w <= 35; w++) {
-    let weekRules = defaultRules;
+    let weekRules: ClassTimetableRule[] = [];
+    let versionId = 'NONE';
+
     if (timetableVersions && timetableVersions.length > 0) {
       const ver = getTimetableVersionForWeek(timetableVersions, year, w);
-      if (ver?.rules) {
+      if (ver && ver.rules) {
         weekRules = ver.rules;
+        versionId = ver.id;
       }
+    } else if (rulesList && rulesList.length > 0) {
+      weekRules = rulesList;
+      versionId = 'RULES_LIST';
     }
 
     const matchingRules = teacherSubjects.length > 0 
@@ -94,6 +99,21 @@ function generateInitialSchedules(teacherProfile?: TeacherProfile, rulesList?: C
       : weekRules;
 
     matchingRules.forEach((rule, idx) => {
+      const normSession = getNormalizedSession(rule);
+      const normPeriod = getNormalizedPeriod(rule);
+
+      console.log('[GENERATE]', {
+        weekNumber: w,
+        versionId,
+        day: rule.dayOfWeek,
+        session: normSession,
+        period: normPeriod,
+        className: rule.className,
+        ruleSubject: rule.subject,
+        teacherSubjects,
+        source: versionId !== 'NONE' ? 'VERSION_RULE' : 'NONE'
+      });
+
       const curr = PREDEFINED_PPCTS.find(p => p.grade === rule.grade && p.subject?.trim().toLowerCase() === rule.subject?.trim().toLowerCase());
       const ppctItem = curr?.items?.find(i => i.week === w) || {
         periodNumber: w,
@@ -101,9 +121,6 @@ function generateInitialSchedules(teacherProfile?: TeacherProfile, rulesList?: C
         topic: `Chủ đề môn ${rule.subject}`,
         requirements: 'Đạt kiến thức chuẩn GDPT'
       };
-
-      const normSession = getNormalizedSession(rule);
-      const normPeriod = getNormalizedPeriod(rule);
 
       items.push({
         id: `s-${rule.className.toLowerCase()}-${rule.subject.toLowerCase()}-p${normPeriod}-w${w}`,
@@ -122,6 +139,8 @@ function generateInitialSchedules(teacherProfile?: TeacherProfile, rulesList?: C
         ppctPeriod: ppctItem.periodNumber,
         status: w < 10 ? 'completed' : w === 10 ? 'preparing' : 'unprepared',
         requirements: ppctItem.requirements,
+        generatedFromTKB: true,
+        source: 'timetable',
         updatedAt: new Date().toISOString()
       });
     });
@@ -643,7 +662,7 @@ export default function App() {
   const handleGenerateFromTKB = (weekNumber?: number) => {
     const year = teacher.academicYear || '2025-2026';
     const weeksToProcess = weekNumber ? [weekNumber] : Array.from({ length: 35 }, (_, i) => i + 1);
-    const existing = [...schedules];
+    let existing = [...schedules];
     let createdCount = 0;
     let skippedCount = 0;
 
@@ -652,28 +671,41 @@ export default function App() {
 
     for (const w of weeksToProcess) {
       let activeRules: ClassTimetableRule[] = [];
+      let verId = 'NONE';
+
       if (timetableVersions && timetableVersions.length > 0) {
         const ver = getTimetableVersionForWeek(timetableVersions, year, w);
         if (ver && ver.rules) {
           activeRules = ver.rules;
-        } else {
-          activeRules = timetableRules;
+          verId = ver.id;
         }
-      } else {
-        activeRules = timetableRules;
       }
 
-      if (!activeRules || activeRules.length === 0) continue;
-
-      // Filter activeRules by teacher.subjects
+      // Filter activeRules strictly by teacher.subjects
       const matchingRules = teacherSubjects.length > 0
         ? activeRules.filter(r => r.subject && teacherSubjects.includes(r.subject.trim().toLowerCase()))
         : activeRules;
+
+      const validSlots = new Set<string>();
 
       matchingRules.forEach((rule, idx) => {
         const normSession = getNormalizedSession(rule);
         const normPeriod = getNormalizedPeriod(rule);
         const ruleSubjectNorm = (rule.subject || '').trim().toLowerCase();
+
+        validSlots.add(`${rule.className}_${rule.dayOfWeek}_${normSession}_${normPeriod}_${ruleSubjectNorm}`);
+
+        console.log('[GENERATE]', {
+          weekNumber: w,
+          versionId: verId,
+          day: rule.dayOfWeek,
+          session: normSession,
+          period: normPeriod,
+          className: rule.className,
+          ruleSubject: rule.subject,
+          teacherSubjects,
+          source: verId !== 'NONE' ? 'VERSION_RULE' : 'NONE'
+        });
 
         const curr = curriculums.find(c => c.grade === rule.grade && c.subject?.trim().toLowerCase() === ruleSubjectNorm);
         const ppctItem = curr?.items.find(i => i.week === w) || curr?.items.find(i => i.periodNumber === w);
@@ -692,6 +724,11 @@ export default function App() {
           const itemSubNorm = (item.subject || '').trim().toLowerCase();
 
           if (itemSubNorm === ruleSubjectNorm) {
+            existing[existingIdx] = {
+              ...item,
+              generatedFromTKB: item.generatedFromTKB ?? true,
+              source: item.source ?? 'timetable'
+            };
             skippedCount++;
           } else {
             // TKB version changed subject for this slot -> Update existing item to new subject & PPCT
@@ -703,6 +740,8 @@ export default function App() {
               topic: ppctItem?.topic,
               ppctPeriod: ppctItem ? ppctItem.periodNumber : w,
               requirements: ppctItem?.requirements,
+              generatedFromTKB: true,
+              source: 'timetable',
               updatedAt: new Date().toISOString(),
             };
             createdCount++;
@@ -731,6 +770,8 @@ export default function App() {
             ppctPeriod: ppctItem ? ppctItem.periodNumber : w,
             status: w < currentWeek ? 'completed' : w === currentWeek ? 'preparing' : 'unprepared',
             requirements: ppctItem?.requirements,
+            generatedFromTKB: true,
+            source: 'timetable',
             updatedAt: new Date().toISOString(),
           };
 
@@ -738,12 +779,28 @@ export default function App() {
           createdCount++;
         }
       });
+
+      // Remove auto-generated TKB slots for week w that no longer exist in validSlots
+      existing = existing.filter(s => {
+        if (s.weekNumber !== w) return true;
+        // Keep manual or user-edited items
+        if (s.generatedFromTKB === false || s.source === 'manual') return true;
+
+        // Clean up auto-generated TKB items that are no longer in validSlots
+        if (s.generatedFromTKB === true || s.source === 'timetable') {
+          const sNormSession = getNormalizedSession(s);
+          const sNormPeriod = getNormalizedPeriod(s);
+          const sSubNorm = (s.subject || '').trim().toLowerCase();
+          const slotKey = `${s.className}_${s.dayOfWeek}_${sNormSession}_${sNormPeriod}_${sSubNorm}`;
+          return validSlots.has(slotKey);
+        }
+
+        // For legacy items without explicitly set generatedFromTKB flag, preserve safely
+        return true;
+      });
     }
 
-    if (createdCount > 0) {
-      updateSchedulesWithHistory(existing);
-    }
-
+    updateSchedulesWithHistory(existing);
     return { createdCount, skippedCount, noVersionFound: false };
   };
 

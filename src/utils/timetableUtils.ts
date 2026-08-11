@@ -25,16 +25,7 @@ export function getTimetableVersionForWeek(
   }
 
   const match = filtered.find(v => weekNumber >= v.fromWeek && weekNumber <= v.toWeek);
-  if (match) return match;
-
-  // Fallback: If no version explicitly covers weekNumber, pick closest version
-  const sorted = [...filtered].sort((a, b) => a.fromWeek - b.fromWeek);
-  if (sorted.length > 0) {
-    if (weekNumber < sorted[0].fromWeek) return sorted[0];
-    if (weekNumber > sorted[sorted.length - 1].toWeek) return sorted[sorted.length - 1];
-  }
-
-  return null;
+  return match || null;
 }
 
 /**
