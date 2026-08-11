@@ -71,19 +71,27 @@ const DEFAULT_RULES: ClassTimetableRule[] = [
 ];
 
 // Generate initial seed schedules matching teacher's registered subjects
-function generateInitialSchedules(teacherProfile?: TeacherProfile, rulesList?: ClassTimetableRule[]): ScheduleItem[] {
+function generateInitialSchedules(teacherProfile?: TeacherProfile, rulesList?: ClassTimetableRule[], timetableVersions?: TimetableVersion[]): ScheduleItem[] {
   const items: ScheduleItem[] = [];
   const profile = teacherProfile || DEFAULT_TEACHER;
-  const rules = rulesList || DEFAULT_RULES;
+  const defaultRules = rulesList || DEFAULT_RULES;
+  const year = profile.academicYear || '2025-2026';
   
   const teacherSubjects = (profile.subjects || []).map(s => s.trim().toLowerCase());
-  const matchingRules = teacherSubjects.length > 0 
-    ? rules.filter(r => r.subject && teacherSubjects.includes(r.subject.trim().toLowerCase()))
-    : rules;
-
-  if (matchingRules.length === 0) return [];
 
   for (let w = 1; w <= 35; w++) {
+    let weekRules = defaultRules;
+    if (timetableVersions && timetableVersions.length > 0) {
+      const ver = getTimetableVersionForWeek(timetableVersions, year, w);
+      if (ver?.rules) {
+        weekRules = ver.rules;
+      }
+    }
+
+    const matchingRules = teacherSubjects.length > 0 
+      ? weekRules.filter(r => r.subject && teacherSubjects.includes(r.subject.trim().toLowerCase()))
+      : weekRules;
+
     matchingRules.forEach((rule, idx) => {
       const curr = PREDEFINED_PPCTS.find(p => p.grade === rule.grade && p.subject?.trim().toLowerCase() === rule.subject?.trim().toLowerCase());
       const ppctItem = curr?.items?.find(i => i.week === w) || {
@@ -99,7 +107,7 @@ function generateInitialSchedules(teacherProfile?: TeacherProfile, rulesList?: C
       items.push({
         id: `s-${rule.className.toLowerCase()}-${rule.subject.toLowerCase()}-p${normPeriod}-w${w}`,
         teacherId: profile.uid,
-        academicYear: profile.academicYear || '2025-2026',
+        academicYear: year,
         semester: profile.semester || 'Học kỳ I',
         weekNumber: w,
         dayOfWeek: rule.dayOfWeek,

@@ -28,7 +28,7 @@ import { getWeekRangeFormatted, loadCustomWeekDatesMap } from '../utils/dateWeek
 import { getWeekDayDate } from '../utils/exportUtils';
 import { formatTableSessionPeriod, getNormalizedSession, getNormalizedPeriod, formatLessonDisplayTitle } from '../utils/classUtils';
 import { getSubjectColorStyle } from '../utils/subjectUtils';
-import { getScheduleForTeachingSlot } from '../utils/timetableUtils';
+import { getScheduleForTeachingSlot, getTimetableVersionForWeek } from '../utils/timetableUtils';
 
 interface ScheduleViewProps {
   teacher?: TeacherProfile;
@@ -152,10 +152,28 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
     return Array.from(combined).filter(Boolean).sort();
   }, [teacherAssignedClasses, schedules]);
 
+  const teacherSubjectNorms = useMemo(() => {
+    return (teacher?.subjects || []).map(s => s.trim().toLowerCase());
+  }, [teacher?.subjects]);
+
+  // Active timetable rules for current week version
+  const activeRulesForWeek = useMemo(() => {
+    const year = teacher?.academicYear || '2025-2026';
+    if (timetableVersions && timetableVersions.length > 0) {
+      const ver = getTimetableVersionForWeek(timetableVersions, year, currentWeek);
+      if (ver?.rules) return ver.rules;
+    }
+    return timetableRules;
+  }, [timetableVersions, teacher?.academicYear, currentWeek, timetableRules]);
+
   // Filter schedules for current week
   const filteredSchedules = useMemo(() => {
     return schedules.filter(item => {
       if (item.weekNumber !== currentWeek) return false;
+      if (teacherSubjectNorms.length > 0) {
+        const itemSub = (item.subject || '').trim().toLowerCase();
+        if (itemSub && !teacherSubjectNorms.includes(itemSub)) return false;
+      }
       if (filter.grade !== 'all' && item.grade !== filter.grade) return false;
       if (filter.className !== 'all' && item.className !== filter.className) return false;
       if (filter.subject !== 'all' && item.subject !== filter.subject) return false;
@@ -169,7 +187,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
       }
       return true;
     });
-  }, [schedules, currentWeek, filter]);
+  }, [schedules, currentWeek, filter, teacherSubjectNorms]);
 
   // Available options for dropdowns
   const availableClasses = Array.from(new Set(schedules.map(s => s.className))).filter(Boolean);
@@ -456,7 +474,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
                 // If there are items for this day, render rows with rowSpan on Column 1
                 return dayItems.map((item, index) => {
                   const isMatchedTKB = Boolean(getScheduleForTeachingSlot(
-                    timetableRules,
+                    activeRulesForWeek,
                     item.dayOfWeek,
                     getNormalizedPeriod(item),
                     getNormalizedSession(item)
@@ -572,6 +590,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
         }}
         curriculums={curriculums}
         timetableRules={timetableRules}
+        timetableVersions={timetableVersions}
         schedules={schedules}
         assignedClasses={assignedClassList}
         onSave={(newItem) => {

@@ -56,12 +56,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // Load latest custom week dates map from system
   const customMap = useMemo(() => loadCustomWeekDatesMap(), []);
 
+  const teacherSubjectNorms = useMemo(() => {
+    return (teacher?.subjects || []).map(s => s.trim().toLowerCase());
+  }, [teacher?.subjects]);
+
   // Filter & sort today's teaching items directly from existing schedules & custom week dates
   const todayItems = useMemo(() => {
     const targetDateStr = dateFormatted.dateStr;
 
     // Filter schedule items that fall on targetDateStr according to the actual system week dates
     const filtered = schedules.filter((item) => {
+      if (teacherSubjectNorms.length > 0) {
+        const itemSub = (item.subject || '').trim().toLowerCase();
+        if (itemSub && !teacherSubjectNorms.includes(itemSub)) return false;
+      }
       const itemActualDate = getActualDayDate(
         item.weekNumber,
         item.dayOfWeek,

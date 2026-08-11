@@ -10,11 +10,11 @@ import {
   Clock,
   Check
 } from 'lucide-react';
-import { ScheduleItem, TeacherProfile, PPCTCurriculum, PPCTItem, ClassTimetableRule } from '../types';
+import { ScheduleItem, TeacherProfile, PPCTCurriculum, PPCTItem, ClassTimetableRule, TimetableVersion } from '../types';
 import { getWeekDayDate } from '../utils/exportUtils';
 import { inferGradeFromClassName } from '../utils/classUtils';
 import { getTeacherUniqueSubjects } from '../utils/subjectUtils';
-import { getScheduleForTeachingSlot } from '../utils/timetableUtils';
+import { getScheduleForTeachingSlot, getTimetableVersionForWeek } from '../utils/timetableUtils';
 
 interface AddLessonModalProps {
   isOpen: boolean;
@@ -25,6 +25,7 @@ interface AddLessonModalProps {
   teacher: TeacherProfile;
   curriculums: PPCTCurriculum[];
   timetableRules?: ClassTimetableRule[];
+  timetableVersions?: TimetableVersion[];
   schedules: ScheduleItem[];
   assignedClasses: string[];
   onSave: (newItem: ScheduleItem) => void;
@@ -43,6 +44,7 @@ export const AddLessonModal: React.FC<AddLessonModalProps> = ({
   teacher,
   curriculums,
   timetableRules = [],
+  timetableVersions = [],
   schedules,
   assignedClasses,
   onSave,
@@ -75,15 +77,25 @@ export const AddLessonModal: React.FC<AddLessonModalProps> = ({
     return ['3A1', '3A2', '3A3', '4A1', '4A2', '4A3', '5A1', '5A2', '5A3'];
   }, [assignedClasses]);
 
+  // Active timetable rules for the selected week
+  const activeRulesForWeek = useMemo(() => {
+    const year = teacher?.academicYear || '2025-2026';
+    if (timetableVersions && timetableVersions.length > 0) {
+      const ver = getTimetableVersionForWeek(timetableVersions, year, currentWeek);
+      if (ver?.rules) return ver.rules;
+    }
+    return timetableRules;
+  }, [timetableVersions, teacher?.academicYear, currentWeek, timetableRules]);
+
   // Find matching slot in Timetable (TKB)
   const tkbSlot = useMemo(() => {
     return getScheduleForTeachingSlot(
-      timetableRules,
+      activeRulesForWeek,
       dayOfWeek,
       subPeriod,
       session === 'sáng' ? 'Sáng' : 'Chiều'
     );
-  }, [timetableRules, dayOfWeek, subPeriod, session]);
+  }, [activeRulesForWeek, dayOfWeek, subPeriod, session]);
 
   // When TKB slot is found for the selected day + period, auto fill class & subject
   useEffect(() => {
