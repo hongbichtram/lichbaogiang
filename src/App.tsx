@@ -70,128 +70,51 @@ const DEFAULT_RULES: ClassTimetableRule[] = [
   { id: 'r8', className: '4A2', grade: 'Khối 4', subject: 'Toán', dayOfWeek: 'Thứ 6', period: 1 },
 ];
 
-// Generate initial seed schedules if empty
-function generateInitialSchedules(): ScheduleItem[] {
+// Generate initial seed schedules matching teacher's registered subjects
+function generateInitialSchedules(teacherProfile?: TeacherProfile, rulesList?: ClassTimetableRule[]): ScheduleItem[] {
   const items: ScheduleItem[] = [];
-  const days: Array<'Thứ 2' | 'Thứ 3' | 'Thứ 4' | 'Thứ 5' | 'Thứ 6'> = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6'];
+  const profile = teacherProfile || DEFAULT_TEACHER;
+  const rules = rulesList || DEFAULT_RULES;
   
-  // Find Tin học 4 PPCT items
-  const th4 = PREDEFINED_PPCTS.find(p => p.grade === 'Khối 4' && p.subject === 'Tin học');
-  const th3 = PREDEFINED_PPCTS.find(p => p.grade === 'Khối 3' && p.subject === 'Tin học');
+  const teacherSubjects = (profile.subjects || []).map(s => s.trim().toLowerCase());
+  if (teacherSubjects.length === 0) return [];
+
+  // Filter rules matching teacher's registered subjects
+  const matchingRules = rules.filter(r => r.subject && teacherSubjects.includes(r.subject.trim().toLowerCase()));
+  if (matchingRules.length === 0) return [];
 
   for (let w = 1; w <= 35; w++) {
-    // 4A1 Tin học
-    const ppct4 = th4?.items.find(i => i.week === w) || {
-      periodNumber: w,
-      title: `Bài ${w}: Học tốt môn Tin học Lớp 4 (Tuần ${w})`,
-      topic: 'Chủ đề: Ứng dụng tin học',
-      requirements: 'Đạt kiến thức chuẩn GDPT 2018'
-    };
+    matchingRules.forEach((rule, idx) => {
+      const curr = PREDEFINED_PPCTS.find(p => p.grade === rule.grade && p.subject?.trim().toLowerCase() === rule.subject?.trim().toLowerCase());
+      const ppctItem = curr?.items?.find(i => i.week === w) || {
+        periodNumber: w,
+        title: `Bài ${w}: Môn ${rule.subject} Lớp ${rule.className} (Tuần ${w})`,
+        topic: `Chủ đề môn ${rule.subject}`,
+        requirements: 'Đạt kiến thức chuẩn GDPT'
+      };
 
-    const ppct3 = th3?.items.find(i => i.week === w) || {
-      periodNumber: w,
-      title: `Bài ${w}: Khám phá thế giới số Lớp 3 (Tuần ${w})`,
-      topic: 'Chủ đề: Máy tính và em',
-      requirements: 'Rèn luyện kỹ năng cơ bản'
-    };
+      const normSession = getNormalizedSession(rule);
+      const normPeriod = getNormalizedPeriod(rule);
 
-    items.push({
-      id: `s-4a1-w${w}`,
-      teacherId: DEFAULT_TEACHER.uid,
-      academicYear: '2024 - 2025',
-      semester: 'Học kỳ I',
-      weekNumber: w,
-      dayOfWeek: 'Thứ 2',
-      period: 2,
-      className: '4A1',
-      subject: 'Tin học',
-      grade: 'Khối 4',
-      lessonTitle: ppct4.title,
-      topic: ppct4.topic,
-      ppctPeriod: ppct4.periodNumber,
-      status: w < 10 ? 'completed' : w === 10 ? 'preparing' : 'unprepared',
-      objectives: 'Giúp học sinh nắm vững khái niệm và thao tác thực hành.',
-      requirements: ppct4.requirements,
-      methods: 'Trực quan, thực hành nhóm, trò chơi học tập',
-      equipment: 'Máy tính, máy chiếu, bài giảng điện tử',
-      notes: 'Học sinh hăng hái phát biểu.',
-      updatedAt: new Date().toISOString()
-    });
-
-    items.push({
-      id: `s-4a2-w${w}`,
-      teacherId: DEFAULT_TEACHER.uid,
-      academicYear: '2024 - 2025',
-      semester: 'Học kỳ I',
-      weekNumber: w,
-      dayOfWeek: 'Thứ 2',
-      period: 3,
-      className: '4A2',
-      subject: 'Tin học',
-      grade: 'Khối 4',
-      lessonTitle: ppct4.title,
-      topic: ppct4.topic,
-      ppctPeriod: ppct4.periodNumber,
-      status: w < 10 ? 'completed' : w === 10 ? 'preparing' : 'unprepared',
-      requirements: ppct4.requirements,
-      updatedAt: new Date().toISOString()
-    });
-
-    items.push({
-      id: `s-3a1-w${w}`,
-      teacherId: DEFAULT_TEACHER.uid,
-      academicYear: '2024 - 2025',
-      semester: 'Học kỳ I',
-      weekNumber: w,
-      dayOfWeek: 'Thứ 3',
-      period: 1,
-      className: '3A1',
-      subject: 'Tin học',
-      grade: 'Khối 3',
-      lessonTitle: ppct3.title,
-      topic: ppct3.topic,
-      ppctPeriod: ppct3.periodNumber,
-      status: w < 10 ? 'completed' : 'unprepared',
-      requirements: ppct3.requirements,
-      updatedAt: new Date().toISOString()
-    });
-
-    items.push({
-      id: `s-3a2-w${w}`,
-      teacherId: DEFAULT_TEACHER.uid,
-      academicYear: '2024 - 2025',
-      semester: 'Học kỳ I',
-      weekNumber: w,
-      dayOfWeek: 'Thứ 3',
-      period: 2,
-      className: '3A2',
-      subject: 'Tin học',
-      grade: 'Khối 3',
-      lessonTitle: ppct3.title,
-      topic: ppct3.topic,
-      ppctPeriod: ppct3.periodNumber,
-      status: w < 10 ? 'completed' : 'unprepared',
-      requirements: ppct3.requirements,
-      updatedAt: new Date().toISOString()
-    });
-
-    items.push({
-      id: `s-4a3-w${w}`,
-      teacherId: DEFAULT_TEACHER.uid,
-      academicYear: '2024 - 2025',
-      semester: 'Học kỳ I',
-      weekNumber: w,
-      dayOfWeek: 'Thứ 5',
-      period: 1,
-      className: '4A3',
-      subject: 'Tin học',
-      grade: 'Khối 4',
-      lessonTitle: ppct4.title,
-      topic: ppct4.topic,
-      ppctPeriod: ppct4.periodNumber,
-      status: w < 10 ? 'completed' : 'unprepared',
-      requirements: ppct4.requirements,
-      updatedAt: new Date().toISOString()
+      items.push({
+        id: `s-${rule.className.toLowerCase()}-${rule.subject.toLowerCase()}-p${normPeriod}-w${w}`,
+        teacherId: profile.uid,
+        academicYear: profile.academicYear || '2025-2026',
+        semester: profile.semester || 'Học kỳ I',
+        weekNumber: w,
+        dayOfWeek: rule.dayOfWeek,
+        session: normSession,
+        period: normPeriod,
+        className: rule.className,
+        subject: rule.subject,
+        grade: rule.grade,
+        lessonTitle: ppctItem.title,
+        topic: ppctItem.topic,
+        ppctPeriod: ppctItem.periodNumber,
+        status: w < 10 ? 'completed' : w === 10 ? 'preparing' : 'unprepared',
+        requirements: ppctItem.requirements,
+        updatedAt: new Date().toISOString()
+      });
     });
   }
 
@@ -656,6 +579,12 @@ export default function App() {
     let createdCount = 0;
     let skippedCount = 0;
 
+    // Filter: Only create schedule items for subjects currently assigned to the teacher
+    const teacherSubjects = (teacher.subjects || []).map(s => s.trim().toLowerCase());
+    if (teacherSubjects.length === 0) {
+      return { createdCount: 0, skippedCount: 0, noVersionFound: false };
+    }
+
     for (const w of weeksToProcess) {
       let activeRules: ClassTimetableRule[] = [];
       if (timetableVersions && timetableVersions.length > 0) {
@@ -677,11 +606,8 @@ export default function App() {
         const normSession = getNormalizedSession(rule);
         const normPeriod = getNormalizedPeriod(rule);
 
-        // Filter: Only create schedule items for subjects currently assigned to the teacher
-        const teacherSubjects = teacher.subjects && teacher.subjects.length > 0 ? teacher.subjects : ['Tin học'];
-        const isSubjectSelected = teacherSubjects.some(
-          s => s.trim().toLowerCase() === (rule.subject || '').trim().toLowerCase()
-        );
+        const ruleSubjectNorm = (rule.subject || '').trim().toLowerCase();
+        const isSubjectSelected = teacherSubjects.includes(ruleSubjectNorm);
 
         if (!isSubjectSelected) {
           return; // Skip rules for subjects not selected by teacher
@@ -701,7 +627,7 @@ export default function App() {
           return; // Skip duplicate! Keep existing item unchanged.
         }
 
-        const curr = curriculums.find(c => c.grade === rule.grade && c.subject === rule.subject);
+        const curr = curriculums.find(c => c.grade === rule.grade && c.subject?.trim().toLowerCase() === ruleSubjectNorm);
         const ppctItem = curr?.items.find(i => i.week === w) || curr?.items.find(i => i.periodNumber === w);
 
         const dayClean = (rule.dayOfWeek || 'day').replace(/\s+/g, '');

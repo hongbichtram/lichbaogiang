@@ -42,7 +42,8 @@ export function getScheduleForTeachingSlot(
   dayOfWeek: string,
   period: number,
   session?: string,
-  rulesFallback?: ClassTimetableRule[]
+  rulesFallback?: ClassTimetableRule[],
+  teacherSubjects?: string[]
 ): ClassTimetableRule | null {
   let rules: ClassTimetableRule[] = [];
 
@@ -62,6 +63,12 @@ export function getScheduleForTeachingSlot(
   }
 
   if (!rules || rules.length === 0) return null;
+
+  // Filter rules by teacherSubjects if specified
+  if (teacherSubjects && teacherSubjects.length > 0) {
+    const normTeacherSubjects = teacherSubjects.map(s => s.trim().toLowerCase());
+    rules = rules.filter(r => r.subject && normTeacherSubjects.includes(r.subject.trim().toLowerCase()));
+  }
 
   const targetSession = session ? getNormalizedSession({ session, period }) : null;
   const targetPeriod = getNormalizedPeriod({ session, period });
