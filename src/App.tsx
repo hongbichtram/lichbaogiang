@@ -241,6 +241,7 @@ export default function App() {
   const [authUser, setAuthUser] = useState<any>(null);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [authLoading, setAuthLoading] = useState<boolean>(true);
+  const [dataReady, setDataReady] = useState<boolean>(false);
   const [systemConfig, setSystemConfig] = useState<SystemConfig | null>(null);
 
   // Load system config on mount and tab switch
@@ -269,14 +270,17 @@ export default function App() {
 
   // Auth Listener & Firestore Data Sync
   useEffect(() => {
+    let isCancelled = false;
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setAuthUser(user);
       if (user) {
-        console.log(`[LOAD] currentUser.uid: ${user.uid}`);
+        console.log(`[DATA LOAD] Auth ready: true, currentUser.uid: ${user.uid}`);
+        setDataReady(false);
         setAutoSaveStatus('saving');
         try {
           // Sync user role and status in users/{uid} collection
           const syncedUser = await syncUserRoleOnLogin(user);
+          if (isCancelled) return;
           setAppUser(syncedUser);
 
           // Fetch existing user data from Firestore
@@ -291,14 +295,24 @@ export default function App() {
             fetchAcademicYearConfigFromFirestore(user.uid, year),
           ]);
 
-          console.log(`[LOAD] weeklySchedules from Firestore: ${fsSchedules ? 'YES' : 'NO'}`);
-          console.log(`[LOAD] weeklySchedules count: ${fsSchedules ? fsSchedules.length : 0}`);
+          if (isCancelled) return;
+
+          console.log(`[DATA LOAD] Firestore weeklySchedules: ${fsSchedules !== null ? `FOUND (${fsSchedules.length})` : 'NOT FOUND / NULL'}`);
+          console.log(`[DATA LOAD] TimetableVersions count: ${fsVersions ? fsVersions.length : 0}`);
 
           let activeTeacher: TeacherProfile = teacher;
           let activeRules: ClassTimetableRule[] = timetableRules;
           let activeVersions: TimetableVersion[] = timetableVersions;
 
-          const hasRemoteData = !!(fsTeacherData.profile || (fsVersions && fsVersions.length > 0) || fsPPCTs || (fsSchedules && fsSchedules.length > 0) || fsCustomDates || fsPrintSettings || fsConfig);
+          const hasRemoteData = !!(
+            fsTeacherData.profile ||
+            (fsVersions && fsVersions.length > 0) ||
+            fsPPCTs ||
+            fsSchedules !== null ||
+            fsCustomDates ||
+            fsPrintSettings ||
+            fsConfig
+          );
 
           if (hasRemoteData) {
             // Firestore has existing data for this teacher -> load remote state
@@ -323,7 +337,6 @@ export default function App() {
               setTimetableVersions(activeVersions);
               localStorage.setItem('smart_schedule_timetable_versions', JSON.stringify(activeVersions));
             } else if (activeRules && activeRules.length > 0) {
-              // Migration: User has rules in teachers/{uid}.rules but no timetableVersions subcollection yet
               console.log('MIGRATION: Auto-creating initial timetableVersion from teachers/{uid}.rules');
               const vYear = activeTeacher.academicYear || '2025-2026';
               const migrated = await saveOrSplitTimetableVersionInFirestore(
@@ -333,6 +346,7 @@ export default function App() {
                 activeRules,
                 'Thời khóa biểu ban đầu'
               );
+              if (isCancelled) return;
               activeVersions = migrated;
               setTimetableVersions(migrated);
               localStorage.setItem('smart_schedule_timetable_versions', JSON.stringify(migrated));
@@ -344,14 +358,15 @@ export default function App() {
             }
 
             // Load Weekly Schedules from Firestore (or LocalStorage fallback)
-            if (fsSchedules && fsSchedules.length > 0) {
+            if (fsSchedules !== null && fsSchedules.length > 0) {
               // Priority 1: Remote Firestore schedule items exist -> LOAD IT
               const sanitized = ensureUniqueScheduleIds(fsSchedules);
               setSchedules(sanitized);
               localStorage.setItem('smart_schedule_items', JSON.stringify(sanitized));
+              console.log(`[DATA LOAD] Loaded ${sanitized.length} items from Firestore weeklySchedules`);
             } else {
-              // Firestore has no weeklySchedules (or empty array).
-              // Check if localStorage has valid schedule items belonging to this teacher
+              // Firestore has no weeklySchedules (or empty array / null).
+              // Check if localStorage has valid schedule items
               const savedLocal = localStorage.getItem('smart_schedule_items');
               let localItems: ScheduleItem[] = [];
               if (savedLocal) {
@@ -361,6 +376,7 @@ export default function App() {
                   localItems = [];
                 }
               }
+              console.log(`[DATA LOAD] LocalStorage schedules: ${localItems.length > 0 ? `FOUND (${localItems.length})` : 'EMPTY'}`);
 
               if (localItems && localItems.length > 0) {
                 // Priority 2: Use existing local schedules and sync to Firestore
@@ -368,18 +384,24 @@ export default function App() {
                 setSchedules(sanitized);
                 localStorage.setItem('smart_schedule_items', JSON.stringify(sanitized));
                 await saveSchedulesToFirestore(user.uid, sanitized);
-                console.log(`[SAVE] weeklySchedules count: ${sanitized.length}`);
-              } else {
+                console.log(`[DATA WRITE] Synced LocalStorage weeklySchedules to Firestore (${sanitized.length} items)`);
+              } else if (fsSchedules === null) {
                 // Priority 3: First time for this teacher without any schedules anywhere -> generate initial schedules ONCE
-                console.log('[GENERATE] generateInitialSchedules called');
+                console.log('[DATA LOAD] generateInitialSchedules called because no schedules exist in Firestore or LocalStorage');
                 const initial = generateInitialSchedules(activeTeacher, activeRules, activeVersions);
                 const sanitized = ensureUniqueScheduleIds(initial);
                 setSchedules(sanitized);
                 localStorage.setItem('smart_schedule_items', JSON.stringify(sanitized));
                 if (sanitized.length > 0) {
                   await saveSchedulesToFirestore(user.uid, sanitized);
-                  console.log(`[SAVE] weeklySchedules count: ${sanitized.length}`);
+                  console.log(`[DATA WRITE] Saved initial weeklySchedules to Firestore (${sanitized.length} items)`);
+                } else {
+                  console.log('[DATA WRITE] Initial schedules generated 0 items. Skipping save to Firestore to protect data.');
                 }
+              } else {
+                // fsSchedules is [] and localItems is [] -> keep empty schedules without writing []
+                setSchedules([]);
+                localStorage.setItem('smart_schedule_items', JSON.stringify([]));
               }
             }
 
@@ -412,44 +434,64 @@ export default function App() {
               timetableRules,
               'Thời khóa biểu ban đầu'
             );
+            if (isCancelled) return;
             setTimetableVersions(initialVersions);
             localStorage.setItem('smart_schedule_timetable_versions', JSON.stringify(initialVersions));
 
             let initialSchedules = schedules;
             if (!initialSchedules || initialSchedules.length === 0) {
-              console.log('[GENERATE] generateInitialSchedules called');
+              console.log('[GENERATE] generateInitialSchedules called for brand new account');
               initialSchedules = generateInitialSchedules(updatedProfile, timetableRules, initialVersions);
               setSchedules(initialSchedules);
               localStorage.setItem('smart_schedule_items', JSON.stringify(initialSchedules));
             }
 
-            await Promise.all([
+            const savePromises: Promise<any>[] = [
               saveTeacherProfileToFirestore(user.uid, updatedProfile, timetableRules),
               savePPCTsToFirestore(user.uid, curriculums),
-              saveSchedulesToFirestore(user.uid, initialSchedules),
               saveCustomWeekDatesToFirestore(user.uid, localCustomDates),
               savePrintSettingsToFirestore(user.uid, printSettings),
-            ]);
-            console.log(`[SAVE] weeklySchedules count: ${initialSchedules.length}`);
+            ];
+            if (initialSchedules && initialSchedules.length > 0) {
+              savePromises.push(saveSchedulesToFirestore(user.uid, initialSchedules));
+              console.log(`[DATA WRITE] Initial sync saved ${initialSchedules.length} items to Firestore`);
+            } else {
+              console.log('[DATA WRITE] initialSchedules is empty. Skipping saveSchedulesToFirestore to protect cloud data.');
+            }
+            await Promise.all(savePromises);
           }
 
-          console.log('[LOAD] data initialization completed');
+          if (isCancelled) return;
+          console.log('[DATA LOAD] Data initialization completed. dataReady: true');
+          setDataReady(true);
         } catch (err) {
           console.error('Failed to sync Firestore data on login:', err);
         } finally {
-          setAutoSaveStatus('saved');
-          setAuthLoading(false);
+          if (!isCancelled) {
+            setAutoSaveStatus('saved');
+            setAuthLoading(false);
+          }
         }
       } else {
-        setAppUser(null);
-        setAuthLoading(false);
+        if (!isCancelled) {
+          setAppUser(null);
+          setDataReady(false);
+          setAuthLoading(false);
+        }
       }
     });
-    return () => unsubscribe();
+    return () => {
+      isCancelled = true;
+      unsubscribe();
+    };
   }, []);
 
   // Save schedules to LocalStorage & Firestore with Auto-save indicator
   const updateSchedulesWithHistory = (newSchedules: ScheduleItem[]) => {
+    if (!dataReady) {
+      console.warn('[DATA WRITE] Blocked updateSchedulesWithHistory: dataReady is false');
+      return;
+    }
     const sanitized = ensureUniqueScheduleIds(newSchedules);
     setAutoSaveStatus('saving');
     setHistory(prev => [...prev, schedules]);
@@ -457,11 +499,11 @@ export default function App() {
     setSchedules(sanitized);
     localStorage.setItem('smart_schedule_items', JSON.stringify(sanitized));
     const currentUid = authUser?.uid || auth.currentUser?.uid;
-    if (currentUid) {
+    if (currentUid && dataReady) {
       saveSchedulesToFirestore(currentUid, sanitized);
       console.log(`[SAVE] weeklySchedules count: ${sanitized.length}`);
     } else {
-      console.warn('SAVE SCHEDULE SKIPPED: User is not logged in (authUser is null). Log in to save to Cloud Firestore.');
+      console.warn('SAVE SCHEDULE SKIPPED: User is not logged in or data not ready.');
     }
     setTimeout(() => {
       setAutoSaveStatus('saved');
@@ -469,7 +511,7 @@ export default function App() {
   };
 
   const handleUndo = () => {
-    if (history.length === 0) return;
+    if (!dataReady || history.length === 0) return;
     const previous = history[history.length - 1];
     setRedoStack(prev => [schedules, ...prev]);
     setHistory(prev => prev.slice(0, -1));
@@ -481,7 +523,7 @@ export default function App() {
   };
 
   const handleRedo = () => {
-    if (redoStack.length === 0) return;
+    if (!dataReady || redoStack.length === 0) return;
     const next = redoStack[0];
     setHistory(prev => [...prev, schedules]);
     setRedoStack(prev => prev.slice(1));
@@ -977,7 +1019,7 @@ export default function App() {
     }
   };
 
-  if (authLoading) {
+  if (authLoading || (authUser && !dataReady)) {
     return (
       <div className="min-h-screen bg-[#090D16] flex flex-col items-center justify-center space-y-4 text-slate-100 font-sans">
         <div className="p-4 rounded-3xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 shadow-2xl shadow-indigo-500/20 animate-pulse">
@@ -985,7 +1027,7 @@ export default function App() {
         </div>
         <div className="flex items-center space-x-2 text-indigo-400 text-xs font-bold tracking-wider uppercase">
           <Loader2 className="w-4 h-4 animate-spin" />
-          <span>Đang khởi tạo hệ thống...</span>
+          <span>Đang tải dữ liệu Lịch báo giảng...</span>
         </div>
       </div>
     );
