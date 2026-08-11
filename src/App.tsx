@@ -677,6 +677,16 @@ export default function App() {
         const normSession = getNormalizedSession(rule);
         const normPeriod = getNormalizedPeriod(rule);
 
+        // Filter: Only create schedule items for subjects currently assigned to the teacher
+        const teacherSubjects = teacher.subjects && teacher.subjects.length > 0 ? teacher.subjects : ['Tin học'];
+        const isSubjectSelected = teacherSubjects.some(
+          s => s.trim().toLowerCase() === (rule.subject || '').trim().toLowerCase()
+        );
+
+        if (!isSubjectSelected) {
+          return; // Skip rules for subjects not selected by teacher
+        }
+
         // Check if an item already exists for this slot in week w
         const exists = existing.some(s => 
           s.weekNumber === w &&

@@ -86,6 +86,14 @@ export const TimetableView: React.FC<TimetableViewProps> = ({
     return getTeacherUniqueSubjects(teacher.subjects, rules, []);
   }, [teacher.subjects, rules]);
 
+  // Keep activeSubject in sync with availableSubjects if teacher subjects change
+  React.useEffect(() => {
+    if (availableSubjects.length > 0 && !availableSubjects.includes(activeSubject)) {
+      setActiveSubject(availableSubjects[0]);
+      setNewRule(prev => ({ ...prev, subject: availableSubjects[0] }));
+    }
+  }, [availableSubjects, activeSubject]);
+
   // Statistics per subject
   const subjectStats = useMemo(() => {
     return calculateSubjectCounts(rules, availableSubjects);
