@@ -395,93 +395,117 @@ export const saveOrSplitTimetableVersionInFirestore = async (
     const batch = writeBatch(db);
     const now = new Date().toISOString();
 
-    if (yearVersions.length === 0) {
-      // If no version exists yet for this academic year:
-      if (fromWeek === 1) {
-        // Simple case: single version covering 1-35
-        const newVerId = `v-1-35-${Date.now()}`;
+    // Check if an existing version starts at exact same fromWeek
+    const exactMatch = yearVersions.find(v => v.fromWeek === fromWeek);
+
+    if (exactMatch) {
+      // Update existing version starting at fromWeek
+      const vRef = doc(db, 'teachers', uid, 'timetableVersions', exactMatch.id);
+      batch.update(vRef, {
+        rules: newRules,
+        versionName: versionName || exactMatch.versionName,
+        updatedAt: now,
+      });
+    } else {
+      // Find covering version where v.fromWeek < fromWeek and v.toWeek >= fromWeek
+      const coveringVer = yearVersions.find(v => v.fromWeek < fromWeek && v.toWeek >= fromWeek);
+
+      if (coveringVer) {
+        const oldToWeek = coveringVer.toWeek;
+        // Slice covering version so its end week becomes (fromWeek - 1)
+        const covRef = doc(db, 'teachers', uid, 'timetableVersions', coveringVer.id);
+        batch.update(covRef, {
+          toWeek: fromWeek - 1,
+          updatedAt: now,
+        });
+
+        // Create new version starting from fromWeek to oldToWeek
+        const newVerId = `v-${fromWeek}-${oldToWeek}-${Date.now()}`;
         const newVerDoc: TimetableVersion = {
           id: newVerId,
           uid,
           academicYear,
-          versionName: versionName || 'Thời khóa biểu ban đầu',
-          fromWeek: 1,
-          toWeek: 35,
-          rules: newRules,
-          createdAt: now,
-          updatedAt: now,
-          createdBy: uid,
-        };
-        const ref = doc(db, 'teachers', uid, 'timetableVersions', newVerId);
-        batch.set(ref, newVerDoc);
-      } else {
-        // fromWeek > 1: Create Initial Version for 1..(fromWeek - 1) and New Version for fromWeek..35
-        // Fetch current snapshot rules from teacher document if available as baseline for 1..(fromWeek - 1)
-        const teacherSnap = await fetchTeacherProfileFromFirestore(uid);
-        const baselineRules = teacherSnap.rules || newRules;
-
-        const v1Id = `v-1-${fromWeek - 1}-${Date.now()}`;
-        const v1Doc: TimetableVersion = {
-          id: v1Id,
-          uid,
-          academicYear,
-          versionName: 'Thời khóa biểu ban đầu',
-          fromWeek: 1,
-          toWeek: fromWeek - 1,
-          rules: baselineRules,
-          createdAt: now,
-          updatedAt: now,
-          createdBy: uid,
-        };
-        batch.set(doc(db, 'teachers', uid, 'timetableVersions', v1Id), v1Doc);
-
-        const v2Id = `v-${fromWeek}-35-${Date.now()}`;
-        const v2Doc: TimetableVersion = {
-          id: v2Id,
-          uid,
-          academicYear,
           versionName: versionName || `Thời khóa biểu áp dụng từ tuần ${fromWeek}`,
           fromWeek,
-          toWeek: 35,
+          toWeek: oldToWeek,
           rules: newRules,
           createdAt: now,
           updatedAt: now,
           createdBy: uid,
         };
-        batch.set(doc(db, 'teachers', uid, 'timetableVersions', v2Id), v2Doc);
-      }
-    } else {
-      // Versions already exist -> split or replace without overlap!
-      for (const v of yearVersions) {
-        const vRef = doc(db, 'teachers', uid, 'timetableVersions', v.id);
-
-        if (v.fromWeek < fromWeek && v.toWeek >= fromWeek) {
-          // Slice previous version so its end week becomes (fromWeek - 1)
-          batch.update(vRef, {
-            toWeek: fromWeek - 1,
+        batch.set(doc(db, 'teachers', uid, 'timetableVersions', newVerId), newVerDoc);
+      } else if (yearVersions.length === 0) {
+        if (fromWeek === 1) {
+          // Simple case: single version covering 1-35
+          const newVerId = `v-1-35-${Date.now()}`;
+          const newVerDoc: TimetableVersion = {
+            id: newVerId,
+            uid,
+            academicYear,
+            versionName: versionName || 'Thời khóa biểu ban đầu',
+            fromWeek: 1,
+            toWeek: 35,
+            rules: newRules,
+            createdAt: now,
             updatedAt: now,
-          });
-        } else if (v.fromWeek >= fromWeek) {
-          // Remove existing future/overlapping versions starting at or after fromWeek
-          batch.delete(vRef);
-        }
-      }
+            createdBy: uid,
+          };
+          batch.set(doc(db, 'teachers', uid, 'timetableVersions', newVerId), newVerDoc);
+        } else {
+          // fromWeek > 1 and no version exists yet: create baseline (1..fromWeek-1) and new (fromWeek..35)
+          const teacherSnap = await fetchTeacherProfileFromFirestore(uid);
+          const baselineRules = teacherSnap?.rules || newRules;
 
-      // Create new version starting from fromWeek to 35
-      const newVerId = `v-${fromWeek}-35-${Date.now()}`;
-      const newVerDoc: TimetableVersion = {
-        id: newVerId,
-        uid,
-        academicYear,
-        versionName: versionName || (fromWeek === 1 ? 'Thời khóa biểu ban đầu' : `Thời khóa biểu áp dụng từ tuần ${fromWeek}`),
-        fromWeek,
-        toWeek: 35,
-        rules: newRules,
-        createdAt: now,
-        updatedAt: now,
-        createdBy: uid,
-      };
-      batch.set(doc(db, 'teachers', uid, 'timetableVersions', newVerId), newVerDoc);
+          const v1Id = `v-1-${fromWeek - 1}-${Date.now()}`;
+          const v1Doc: TimetableVersion = {
+            id: v1Id,
+            uid,
+            academicYear,
+            versionName: 'Thời khóa biểu ban đầu',
+            fromWeek: 1,
+            toWeek: fromWeek - 1,
+            rules: baselineRules,
+            createdAt: now,
+            updatedAt: now,
+            createdBy: uid,
+          };
+          batch.set(doc(db, 'teachers', uid, 'timetableVersions', v1Id), v1Doc);
+
+          const v2Id = `v-${fromWeek}-35-${Date.now()}`;
+          const v2Doc: TimetableVersion = {
+            id: v2Id,
+            uid,
+            academicYear,
+            versionName: versionName || `Thời khóa biểu áp dụng từ tuần ${fromWeek}`,
+            fromWeek,
+            toWeek: 35,
+            rules: newRules,
+            createdAt: now,
+            updatedAt: now,
+            createdBy: uid,
+          };
+          batch.set(doc(db, 'teachers', uid, 'timetableVersions', v2Id), v2Doc);
+        }
+      } else {
+        // yearVersions.length > 0 but no version covers fromWeek
+        const futureVersions = yearVersions.filter(v => v.fromWeek > fromWeek).sort((a, b) => a.fromWeek - b.fromWeek);
+        const targetEndWeek = futureVersions.length > 0 ? futureVersions[0].fromWeek - 1 : 35;
+
+        const newVerId = `v-${fromWeek}-${targetEndWeek}-${Date.now()}`;
+        const newVerDoc: TimetableVersion = {
+          id: newVerId,
+          uid,
+          academicYear,
+          versionName: versionName || (fromWeek === 1 ? 'Thời khóa biểu ban đầu' : `Thời khóa biểu áp dụng từ tuần ${fromWeek}`),
+          fromWeek,
+          toWeek: targetEndWeek,
+          rules: newRules,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: uid,
+        };
+        batch.set(doc(db, 'teachers', uid, 'timetableVersions', newVerId), newVerDoc);
+      }
     }
 
     // Also sync rules snapshot in teachers/{uid}.rules for backward compatibility

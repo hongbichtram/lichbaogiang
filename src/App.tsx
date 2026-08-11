@@ -709,46 +709,107 @@ export default function App() {
       localStorage.setItem('smart_schedule_timetable_versions', JSON.stringify(updatedVersions));
     } else {
       const now = new Date().toISOString();
-      const newVer: TimetableVersion = {
-        id: `v-${fromWeek}-35-${Date.now()}`,
-        uid: teacher.uid,
-        academicYear: year,
-        versionName: versionName || (fromWeek === 1 ? 'Thời khóa biểu ban đầu' : `Thời khóa biểu áp dụng từ tuần ${fromWeek}`),
-        fromWeek,
-        toWeek: 35,
-        rules: newRules,
-        createdAt: now,
-        updatedAt: now,
-        createdBy: teacher.uid,
-      };
-
       const yearVers = timetableVersions.filter(v => v.academicYear === year);
       const otherVers = timetableVersions.filter(v => v.academicYear !== year);
 
       let adjusted: TimetableVersion[] = [];
-      if (yearVers.length === 0) {
-        if (fromWeek === 1) {
-          adjusted = [newVer];
-        } else {
-          const v1: TimetableVersion = {
-            id: `v-1-${fromWeek - 1}-${Date.now()}`,
+      const exactMatch = yearVers.find(v => v.fromWeek === fromWeek);
+
+      if (exactMatch) {
+        adjusted = yearVers.map(v => {
+          if (v.id === exactMatch.id) {
+            return {
+              ...v,
+              rules: newRules,
+              versionName: versionName || v.versionName,
+              updatedAt: now,
+            };
+          }
+          return v;
+        });
+      } else {
+        const coveringVer = yearVers.find(v => v.fromWeek < fromWeek && v.toWeek >= fromWeek);
+
+        if (coveringVer) {
+          const oldToWeek = coveringVer.toWeek;
+          const newVer: TimetableVersion = {
+            id: `v-${fromWeek}-${oldToWeek}-${Date.now()}`,
             uid: teacher.uid,
             academicYear: year,
-            versionName: 'Thời khóa biểu ban đầu',
-            fromWeek: 1,
-            toWeek: fromWeek - 1,
-            rules: timetableRules,
+            versionName: versionName || `Thời khóa biểu áp dụng từ tuần ${fromWeek}`,
+            fromWeek,
+            toWeek: oldToWeek,
+            rules: newRules,
             createdAt: now,
             updatedAt: now,
             createdBy: teacher.uid,
           };
-          adjusted = [v1, newVer];
+
+          adjusted = yearVers.map(v => {
+            if (v.id === coveringVer.id) {
+              return { ...v, toWeek: fromWeek - 1, updatedAt: now };
+            }
+            return v;
+          });
+          adjusted.push(newVer);
+        } else if (yearVers.length === 0) {
+          if (fromWeek === 1) {
+            adjusted = [{
+              id: `v-1-35-${Date.now()}`,
+              uid: teacher.uid,
+              academicYear: year,
+              versionName: versionName || 'Thời khóa biểu ban đầu',
+              fromWeek: 1,
+              toWeek: 35,
+              rules: newRules,
+              createdAt: now,
+              updatedAt: now,
+              createdBy: teacher.uid,
+            }];
+          } else {
+            const v1: TimetableVersion = {
+              id: `v-1-${fromWeek - 1}-${Date.now()}`,
+              uid: teacher.uid,
+              academicYear: year,
+              versionName: 'Thời khóa biểu ban đầu',
+              fromWeek: 1,
+              toWeek: fromWeek - 1,
+              rules: timetableRules,
+              createdAt: now,
+              updatedAt: now,
+              createdBy: teacher.uid,
+            };
+            const v2: TimetableVersion = {
+              id: `v-${fromWeek}-35-${Date.now()}`,
+              uid: teacher.uid,
+              academicYear: year,
+              versionName: versionName || `Thời khóa biểu áp dụng từ tuần ${fromWeek}`,
+              fromWeek,
+              toWeek: 35,
+              rules: newRules,
+              createdAt: now,
+              updatedAt: now,
+              createdBy: teacher.uid,
+            };
+            adjusted = [v1, v2];
+          }
+        } else {
+          const futureVersions = yearVers.filter(v => v.fromWeek > fromWeek).sort((a, b) => a.fromWeek - b.fromWeek);
+          const targetEndWeek = futureVersions.length > 0 ? futureVersions[0].fromWeek - 1 : 35;
+          const newVer: TimetableVersion = {
+            id: `v-${fromWeek}-${targetEndWeek}-${Date.now()}`,
+            uid: teacher.uid,
+            academicYear: year,
+            versionName: versionName || (fromWeek === 1 ? 'Thời khóa biểu ban đầu' : `Thời khóa biểu áp dụng từ tuần ${fromWeek}`),
+            fromWeek,
+            toWeek: targetEndWeek,
+            rules: newRules,
+            createdAt: now,
+            updatedAt: now,
+            createdBy: teacher.uid,
+          };
+          adjusted = [...yearVers, newVer];
         }
-      } else {
-        adjusted = yearVers
-          .filter(v => v.fromWeek < fromWeek)
-          .map(v => v.toWeek >= fromWeek ? { ...v, toWeek: fromWeek - 1, updatedAt: now } : v);
-        adjusted.push(newVer);
       }
 
       adjusted.sort((a, b) => a.fromWeek - b.fromWeek);

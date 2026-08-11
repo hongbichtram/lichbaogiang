@@ -312,7 +312,7 @@ export const TimetableView: React.FC<TimetableViewProps> = ({
               <span>Cấu Hình Phiên Bản TKB Theo Tuần</span>
             </h3>
             <p className="text-xs text-indigo-800/80 dark:text-slate-400">
-              Thay đổi TKB từ tuần X sẽ lưu phiên bản mới (X → 35) và bảo vệ TKB các tuần trước đó (1 → X-1).
+              TKB mới sẽ bắt đầu có hiệu lực từ tuần đã chọn và tiếp tục áp dụng cho các tuần sau cho đến trước khi có phiên bản TKB mới.
             </p>
           </div>
 
