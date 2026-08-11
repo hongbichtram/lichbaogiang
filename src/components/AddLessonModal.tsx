@@ -81,11 +81,9 @@ export const AddLessonModal: React.FC<AddLessonModalProps> = ({
       timetableRules,
       dayOfWeek,
       subPeriod,
-      session === 'sáng' ? 'Sáng' : 'Chiều',
-      undefined,
-      teacher?.subjects
+      session === 'sáng' ? 'Sáng' : 'Chiều'
     );
-  }, [timetableRules, dayOfWeek, subPeriod, session, teacher?.subjects]);
+  }, [timetableRules, dayOfWeek, subPeriod, session]);
 
   // When TKB slot is found for the selected day + period, auto fill class & subject
   useEffect(() => {

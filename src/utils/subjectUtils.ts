@@ -200,22 +200,19 @@ export function getTeacherUniqueSubjects(
     if (s && s.trim()) set.add(s.trim());
   });
 
-  // If teacher has explicitly configured subjects, return ONLY those subjects
-  if (set.size > 0) {
-    return Array.from(set).sort();
-  }
-
-  // Fallback ONLY if teacher.subjects is completely empty
+  // Add rules subjects
   rules.forEach(r => {
     if (r.subject && r.subject.trim()) set.add(r.subject.trim());
   });
 
+  // Add schedules subjects
   schedules.forEach(s => {
     if (s.subject && s.subject.trim()) set.add(s.subject.trim());
   });
 
   if (set.size === 0) {
     set.add('Tin học');
+    set.add('Công nghệ');
   }
 
   return Array.from(set).sort();

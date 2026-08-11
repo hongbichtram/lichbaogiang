@@ -77,10 +77,10 @@ function generateInitialSchedules(teacherProfile?: TeacherProfile, rulesList?: C
   const rules = rulesList || DEFAULT_RULES;
   
   const teacherSubjects = (profile.subjects || []).map(s => s.trim().toLowerCase());
-  if (teacherSubjects.length === 0) return [];
+  const matchingRules = teacherSubjects.length > 0 
+    ? rules.filter(r => r.subject && teacherSubjects.includes(r.subject.trim().toLowerCase()))
+    : rules;
 
-  // Filter rules matching teacher's registered subjects
-  const matchingRules = rules.filter(r => r.subject && teacherSubjects.includes(r.subject.trim().toLowerCase()));
   if (matchingRules.length === 0) return [];
 
   for (let w = 1; w <= 35; w++) {
@@ -579,11 +579,8 @@ export default function App() {
     let createdCount = 0;
     let skippedCount = 0;
 
-    // Filter: Only create schedule items for subjects currently assigned to the teacher
+    // Filter: Only create schedule items for subjects currently assigned to the teacher (if configured)
     const teacherSubjects = (teacher.subjects || []).map(s => s.trim().toLowerCase());
-    if (teacherSubjects.length === 0) {
-      return { createdCount: 0, skippedCount: 0, noVersionFound: false };
-    }
 
     for (const w of weeksToProcess) {
       let activeRules: ClassTimetableRule[] = [];
@@ -607,9 +604,9 @@ export default function App() {
         const normPeriod = getNormalizedPeriod(rule);
 
         const ruleSubjectNorm = (rule.subject || '').trim().toLowerCase();
-        const isSubjectSelected = teacherSubjects.includes(ruleSubjectNorm);
-
-        if (!isSubjectSelected) {
+        
+        // When teacher has configured subjects, filter out subjects not taught by teacher
+        if (teacherSubjects.length > 0 && !teacherSubjects.includes(ruleSubjectNorm)) {
           return; // Skip rules for subjects not selected by teacher
         }
 

@@ -459,9 +459,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
                     timetableRules,
                     item.dayOfWeek,
                     getNormalizedPeriod(item),
-                    getNormalizedSession(item),
-                    undefined,
-                    teacher?.subjects
+                    getNormalizedSession(item)
                   ));
 
                   return (
