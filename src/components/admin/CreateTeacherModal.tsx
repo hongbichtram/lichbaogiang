@@ -10,6 +10,7 @@ import {
   BadgeCheck, 
   Shield, 
   AlertCircle, 
+  CheckCircle2,
   Loader2,
   Lock,
   Eye,
@@ -40,12 +41,14 @@ export const CreateTeacherModal: React.FC<CreateTeacherModalProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    setSuccessMessage(null);
 
     // Form Validations
     if (!displayName.trim()) {
@@ -94,6 +97,7 @@ export const CreateTeacherModal: React.FC<CreateTeacherModalProps> = ({
       );
 
       if (res.success) {
+        setSuccessMessage('Đã tạo tài khoản giáo viên thành công.');
         // Reset Form
         setDisplayName('');
         setEmail('');
@@ -102,13 +106,19 @@ export const CreateTeacherModal: React.FC<CreateTeacherModalProps> = ({
         setConfirmPassword('');
         setRole('teacher');
         setStatus('active');
+        
         onSuccess();
-        onClose();
+        
+        setTimeout(() => {
+          setSuccessMessage(null);
+          onClose();
+        }, 1500);
       } else {
         setErrorMessage(res.message || 'Không thể tạo tài khoản giáo viên.');
       }
     } catch (err: any) {
-      setErrorMessage(err.message || 'Đã xảy ra lỗi không xác định.');
+      console.error('Create teacher submission error:', err);
+      setErrorMessage(err?.message || 'Đã xảy ra lỗi không xác định.');
     } finally {
       setIsSubmitting(false);
     }
@@ -143,13 +153,21 @@ export const CreateTeacherModal: React.FC<CreateTeacherModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="p-6 overflow-y-auto space-y-4">
           
           {/* Error Banner */}
           {errorMessage && (
             <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-start space-x-2.5 animate-fadeIn">
               <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
               <div className="leading-relaxed font-medium">{errorMessage}</div>
+            </div>
+          )}
+
+          {/* Success Banner */}
+          {successMessage && (
+            <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs flex items-center space-x-2.5 animate-fadeIn">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <div className="leading-relaxed font-semibold">{successMessage}</div>
             </div>
           )}
 
@@ -307,19 +325,24 @@ export const CreateTeacherModal: React.FC<CreateTeacherModalProps> = ({
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors"
+              className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors cursor-pointer"
             >
               Hủy bỏ
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !!successMessage}
               className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-all flex items-center space-x-1.5 shadow-lg shadow-indigo-600/30 disabled:opacity-50 cursor-pointer"
             >
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   <span>Đang tạo tài khoản...</span>
+                </>
+              ) : successMessage ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span>Đã tạo tài khoản thành công!</span>
                 </>
               ) : (
                 <>

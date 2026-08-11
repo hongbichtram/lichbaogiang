@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Calendar, 
   Mail, 
@@ -9,9 +9,14 @@ import {
   AlertCircle, 
   ShieldCheck, 
   BookOpen,
-  Sparkles
+  Sparkles,
+  Building2,
+  Phone
 } from 'lucide-react';
 import { loginWithEmailAndPassword, signInWithGoogle } from '../../lib/firebase';
+import { fetchSystemConfig } from '../../services/adminService';
+import { SystemConfig } from '../../types';
+import { Footer } from '../Footer';
 
 interface LoginScreenProps {
   onLoginSuccess?: () => void;
@@ -25,6 +30,23 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ darkMode = true }) => 
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [sysConfig, setSysConfig] = useState<SystemConfig | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetchSystemConfig().then(cfg => {
+      if (isMounted && cfg) {
+        setSysConfig(cfg);
+      }
+    }).catch(err => {
+      console.warn('LoginScreen: Could not load system config', err);
+    });
+    return () => { isMounted = false; };
+  }, []);
+
+  const schoolName = sysConfig?.schoolName?.trim() || "LỊCH BÁO GIẢNG TIỂU HỌC";
+  const supportEmail = sysConfig?.supportEmail?.trim() || sysConfig?.contactEmail?.trim() || "Chưa cập nhật";
+  const supportPhone = sysConfig?.supportPhone?.trim() || sysConfig?.contactPhone?.trim() || "Chưa cập nhật";
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,17 +144,35 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ darkMode = true }) => 
             {/* Top Decorative Highlight */}
             <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-80" />
 
-            {/* Header Title Section */}
-            <div className="text-center space-y-3 mb-8">
-              <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 mb-1">
-                <BookOpen className="w-8 h-8" />
+            {/* Login Banner Section */}
+            <div className="mb-6 rounded-2xl bg-gradient-to-br from-indigo-950/80 via-slate-900 to-blue-950/80 border border-indigo-500/25 p-5 shadow-inner text-center space-y-3">
+              {/* School Name / Institution */}
+              <div className="inline-flex items-center justify-center space-x-2 px-3.5 py-1 rounded-full bg-indigo-500/15 border border-indigo-400/20 text-indigo-300 text-xs font-bold max-w-full">
+                <Building2 className="w-3.5 h-3.5 shrink-0 text-indigo-400" />
+                <span className="truncate">{schoolName}</span>
               </div>
-              <h1 className="text-xl font-black uppercase tracking-wide text-white">
-                LỊCH BÁO GIẢNG TIỂU HỌC
-              </h1>
-              <p className="text-xs text-slate-400 leading-relaxed max-w-xs mx-auto">
-                Quản lý thời khóa biểu và lịch báo giảng cá nhân
-              </p>
+
+              {/* Main Title & Subtitle */}
+              <div className="space-y-1">
+                <h1 className="text-lg sm:text-xl font-black uppercase tracking-wide text-white drop-shadow-sm">
+                  LỊCH BÁO GIẢNG TIỂU HỌC
+                </h1>
+                <p className="text-[11px] sm:text-xs text-slate-300 leading-relaxed font-medium">
+                  Quản lý thời khóa biểu và lịch báo giảng cá nhân
+                </p>
+              </div>
+
+              {/* Support Info */}
+              <div className="pt-2 border-t border-indigo-500/15 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 text-[11px] text-slate-400 font-medium">
+                <div className="flex items-center space-x-1.5 hover:text-slate-300 transition-colors">
+                  <Mail className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                  <span>Email: <strong className="text-slate-200">{supportEmail}</strong></span>
+                </div>
+                <div className="flex items-center space-x-1.5 hover:text-slate-300 transition-colors">
+                  <Phone className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                  <span>Hotline: <strong className="text-slate-200">{supportPhone}</strong></span>
+                </div>
+              </div>
             </div>
 
             {/* Error Message Box */}
@@ -266,16 +306,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ darkMode = true }) => 
           {/* Bottom Help Text */}
           <div className="text-center text-[11px] text-slate-500 space-y-1">
             <p>Tài khoản do Nhà trường / Quản trị viên cấp.</p>
-            <p className="text-slate-600">Lịch báo giảng Tiểu học GDPT 2018 © 2026</p>
           </div>
 
         </div>
       </main>
 
-      {/* Footer minimal info */}
-      <footer className="relative z-10 py-4 text-center text-[10px] text-slate-600">
-        Phiên bản 2.5 • Chuẩn GDPT 2018 Tiểu học
-      </footer>
+      {/* Unified Global Footer */}
+      <Footer />
     </div>
   );
 };

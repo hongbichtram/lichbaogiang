@@ -4,6 +4,7 @@ import { TeacherManagement } from './TeacherManagement';
 import { SystemStatistics } from './SystemStatistics';
 import { SystemSettings } from './SystemSettings';
 import { ActivityLogs } from './ActivityLogs';
+import { Footer } from '../Footer';
 import { 
   Shield, 
   LayoutDashboard, 
@@ -167,12 +168,15 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         </aside>
 
         {/* Admin Content Area */}
-        <main className="flex-1 min-w-0">
-          {activeTab === 'dashboard' && <AdminDashboard onNavigateTab={setActiveTab} />}
-          {activeTab === 'teachers' && <TeacherManagement currentUser={currentUser} />}
-          {activeTab === 'stats' && <SystemStatistics />}
-          {activeTab === 'settings' && <SystemSettings currentUser={currentUser} />}
-          {activeTab === 'logs' && <ActivityLogs />}
+        <main className="flex-1 min-w-0 flex flex-col justify-between">
+          <div>
+            {activeTab === 'dashboard' && <AdminDashboard onNavigateTab={setActiveTab} />}
+            {activeTab === 'teachers' && <TeacherManagement currentUser={currentUser} />}
+            {activeTab === 'stats' && <SystemStatistics />}
+            {activeTab === 'settings' && <SystemSettings currentUser={currentUser} />}
+            {activeTab === 'logs' && <ActivityLogs />}
+          </div>
+          <Footer />
         </main>
 
       </div>
