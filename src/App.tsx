@@ -36,6 +36,7 @@ import {
   fetchPrintSettingsFromFirestore,
   saveAcademicYearConfigToFirestore,
   fetchAcademicYearConfigFromFirestore,
+  deleteTimetableVersionFromFirestore,
   syncUserRoleOnLogin
 } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -901,6 +902,24 @@ export default function App() {
     }
   };
 
+  const handleDeleteTimetableVersion = async (versionId: string) => {
+    const currentUid = authUser?.uid || auth.currentUser?.uid;
+    if (!currentUid || !versionId) return;
+
+    try {
+      console.log(`[DELETE VERSION] Deleting timetableVersion ${versionId} for user ${currentUid}`);
+      await deleteTimetableVersionFromFirestore(currentUid, versionId);
+
+      const updatedVersions = timetableVersions.filter(v => v.id !== versionId);
+      setTimetableVersions(updatedVersions);
+      localStorage.setItem('smart_schedule_timetable_versions', JSON.stringify(updatedVersions));
+
+      console.log(`[DELETE VERSION] Successfully deleted version ${versionId}. Remaining count: ${updatedVersions.length}`);
+    } catch (err) {
+      console.error('Failed to delete timetable version:', err);
+    }
+  };
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-[#090D16] flex flex-col items-center justify-center space-y-4 text-slate-100 font-sans">
@@ -1062,6 +1081,7 @@ export default function App() {
             currentWeek={currentWeek}
             onSaveProfile={handleSaveProfile}
             onSaveTimetableRules={handleSaveTimetableRules}
+            onDeleteTimetableVersion={handleDeleteTimetableVersion}
             onAutoGenerateSchedule={handleAutoGenerateSchedule}
           />
         )}

@@ -32,6 +32,7 @@ interface TimetableViewProps {
   currentWeek?: number;
   onSaveProfile: (profile: TeacherProfile) => void;
   onSaveTimetableRules: (rules: ClassTimetableRule[], fromWeek?: number, versionName?: string) => void;
+  onDeleteTimetableVersion?: (versionId: string) => Promise<void> | void;
   onAutoGenerateSchedule: () => void;
 }
 
@@ -46,12 +47,54 @@ export const TimetableView: React.FC<TimetableViewProps> = ({
   currentWeek = 1,
   onSaveProfile,
   onSaveTimetableRules,
+  onDeleteTimetableVersion,
   onAutoGenerateSchedule,
 }) => {
   const [rules, setRules] = useState<ClassTimetableRule[]>([...timetableRules]);
   const [addClassInput, setAddClassInput] = useState('');
   const [applyFromWeek, setApplyFromWeek] = useState<number>(currentWeek || 1);
   const [versionNameInput, setVersionNameInput] = useState<string>('');
+  
+  // Selected timetable version for management / deletion
+  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState<boolean>(false);
+  const [versionToDelete, setVersionToDelete] = useState<TimetableVersion | null>(null);
+  const [isDeletingVersion, setIsDeletingVersion] = useState<boolean>(false);
+
+  // Sync selectedVersionId if deleted or missing from timetableVersions
+  React.useEffect(() => {
+    if (selectedVersionId && !timetableVersions.some(v => v.id === selectedVersionId)) {
+      setSelectedVersionId(null);
+    }
+  }, [timetableVersions, selectedVersionId]);
+
+  const selectedVersion = useMemo(() => {
+    return timetableVersions.find(v => v.id === selectedVersionId) || null;
+  }, [timetableVersions, selectedVersionId]);
+
+  const handleSelectVersion = (v: TimetableVersion) => {
+    setSelectedVersionId(v.id);
+    if (v.rules && v.rules.length > 0) {
+      setRules([...v.rules]);
+    }
+    setApplyFromWeek(v.fromWeek);
+    setVersionNameInput(v.versionName || '');
+  };
+
+  const handleConfirmDeleteVersion = async () => {
+    if (!versionToDelete || !onDeleteTimetableVersion) return;
+    setIsDeletingVersion(true);
+    try {
+      await onDeleteTimetableVersion(versionToDelete.id);
+      setSelectedVersionId(null);
+      setShowDeleteConfirmModal(false);
+      setVersionToDelete(null);
+    } catch (err) {
+      console.error('Error deleting timetable version:', err);
+    } finally {
+      setIsDeletingVersion(false);
+    }
+  };
   
   // Filter by subject on timetable matrix
   const [subjectFilter, setSubjectFilter] = useState<string>('all');
@@ -340,23 +383,59 @@ export const TimetableView: React.FC<TimetableViewProps> = ({
           </div>
         </div>
 
-        {/* Display existing versions */}
+        {/* Display existing versions with selection and delete option */}
         {timetableVersions && timetableVersions.length > 0 && (
-          <div className="pt-2 border-t border-indigo-100 dark:border-slate-700/60 flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Các phiên bản hiện có:</span>
-            {timetableVersions.map((v) => (
-              <span
-                key={v.id}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 border ${
-                  applyFromWeek >= v.fromWeek && applyFromWeek <= v.toWeek
-                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                }`}
-              >
-                <span>{v.versionName || 'TKB'}</span>
-                <span className="opacity-80 font-mono">(Tuần {v.fromWeek} – {v.toWeek})</span>
-              </span>
-            ))}
+          <div className="pt-2 border-t border-indigo-100 dark:border-slate-700/60 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Các phiên bản hiện có:</span>
+              {timetableVersions.map((v) => {
+                const isSelected = selectedVersionId === v.id;
+                const isAppliesToWeek = applyFromWeek >= v.fromWeek && applyFromWeek <= v.toWeek;
+                return (
+                  <button
+                    key={v.id}
+                    type="button"
+                    onClick={() => handleSelectVersion(v)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 border transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-md ring-2 ring-indigo-400 dark:ring-indigo-500'
+                        : isAppliesToWeek
+                        ? 'bg-indigo-100 text-indigo-900 dark:bg-indigo-950 dark:text-indigo-200 border-indigo-300 dark:border-indigo-700'
+                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-indigo-300'
+                    }`}
+                  >
+                    <span>{v.versionName || 'TKB'}</span>
+                    <span className="opacity-80 font-mono">(Tuần {v.fromWeek} – {v.toWeek})</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {selectedVersion && (
+              <div className="flex flex-wrap items-center justify-between gap-2 bg-indigo-50/80 dark:bg-slate-900/90 px-3 py-2 rounded-xl border border-indigo-200 dark:border-slate-700 animate-fadeIn text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-indigo-900 dark:text-indigo-300">Đã chọn phiên bản:</span>
+                  <span className="font-extrabold text-slate-900 dark:text-white">
+                    {selectedVersion.versionName || 'Thời khóa biểu'}
+                  </span>
+                  <span className="font-mono text-slate-500 dark:text-slate-400 text-[11px]">
+                    (Tuần {selectedVersion.fromWeek} – {selectedVersion.toWeek})
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVersionToDelete(selectedVersion);
+                    setShowDeleteConfirmModal(true);
+                  }}
+                  className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Xóa phiên bản</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -899,6 +978,62 @@ export const TimetableView: React.FC<TimetableViewProps> = ({
         </div>
 
       </div>
+
+      {/* Confirmation Modal for Deleting Timetable Version */}
+      {showDeleteConfirmModal && versionToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="p-3 bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 rounded-xl shrink-0">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Xác nhận xóa phiên bản TKB
+                </h3>
+                <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+                  {versionToDelete.versionName || 'Thời khóa biểu'} (Tuần {versionToDelete.fromWeek} – {versionToDelete.toWeek})
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 dark:bg-slate-900/80 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80 space-y-1.5 text-xs text-slate-700 dark:text-slate-300 font-medium">
+              <p>Bạn có chắc chắn muốn xóa phiên bản TKB này không?</p>
+              <p>Các phiên bản TKB khác sẽ không bị ảnh hưởng.</p>
+              <p>Lịch báo giảng đã lưu cũng không bị xóa.</p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteConfirmModal(false);
+                  setVersionToDelete(null);
+                }}
+                disabled={isDeletingVersion}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteVersion}
+                disabled={isDeletingVersion}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50"
+              >
+                {isDeletingVersion ? (
+                  <span>Đang xóa...</span>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>Xóa phiên bản</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
