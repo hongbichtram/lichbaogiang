@@ -231,6 +231,8 @@ export const AddLessonModal: React.FC<AddLessonModalProps> = ({
       requirements: suggestedPpctItem?.requirements,
       notes: notes.trim() || undefined,
       status: 'unprepared',
+      generatedFromTKB: false,
+      source: 'manual',
       updatedAt: new Date().toISOString(),
     };
 

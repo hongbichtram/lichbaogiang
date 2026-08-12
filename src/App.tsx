@@ -71,63 +71,8 @@ const DEFAULT_RULES: ClassTimetableRule[] = [
 ];
 
 // Generate initial seed schedules matching teacher's registered subjects and active TimetableVersions
-function generateInitialSchedules(teacherProfile?: TeacherProfile, timetableVersions?: TimetableVersion[]): ScheduleItem[] {
-  const items: ScheduleItem[] = [];
-  if (!teacherProfile || !timetableVersions || timetableVersions.length === 0) {
-    return items;
-  }
-  const profile = teacherProfile;
-  const year = profile.academicYear || '2026-2027';
-  
-  const teacherSubjects = (profile.subjects || []).map(s => s.trim().toLowerCase());
-  if (teacherSubjects.length === 0) return items;
-
-  for (let w = 1; w <= 35; w++) {
-    const ver = getTimetableVersionForWeek(timetableVersions, year, w);
-    if (!ver || !ver.rules || ver.rules.length === 0) continue;
-
-    const matchingRules = ver.rules.filter(r => 
-      r.subject && teacherSubjects.includes(r.subject.trim().toLowerCase())
-    );
-
-    matchingRules.forEach((rule, idx) => {
-      const normSession = getNormalizedSession(rule);
-      const normPeriod = getNormalizedPeriod(rule);
-      const ruleSubjectNorm = (rule.subject || '').trim().toLowerCase();
-
-      const curr = PREDEFINED_PPCTS.find(p => p.grade === rule.grade && p.subject?.trim().toLowerCase() === ruleSubjectNorm);
-      const ppctItem = curr?.items?.find(i => i.week === w) || {
-        periodNumber: w,
-        title: `Bài ${w}: Môn ${rule.subject} Lớp ${rule.className} (Tuần ${w})`,
-        topic: `Chủ đề môn ${rule.subject}`,
-        requirements: 'Đạt kiến thức chuẩn GDPT'
-      };
-
-      items.push({
-        id: `s-${rule.className.toLowerCase()}-${ruleSubjectNorm}-p${normPeriod}-w${w}`,
-        teacherId: profile.uid,
-        academicYear: year,
-        semester: profile.semester || 'Học kỳ I',
-        weekNumber: w,
-        dayOfWeek: rule.dayOfWeek,
-        session: normSession,
-        period: normPeriod,
-        className: rule.className,
-        subject: rule.subject,
-        grade: rule.grade,
-        lessonTitle: ppctItem.title,
-        topic: ppctItem.topic,
-        ppctPeriod: ppctItem.periodNumber,
-        status: w < 10 ? 'completed' : w === 10 ? 'preparing' : 'unprepared',
-        requirements: ppctItem.requirements,
-        generatedFromTKB: true,
-        source: 'timetable',
-        updatedAt: new Date().toISOString()
-      });
-    });
-  }
-
-  return items;
+function generateInitialSchedules(): ScheduleItem[] {
+  return [];
 }
 
 // Utility to guarantee unique IDs across schedule items
@@ -318,14 +263,14 @@ export default function App() {
             activeVersions = fsVersions;
             setTimetableVersions(activeVersions);
             localStorage.setItem('smart_schedule_timetable_versions', JSON.stringify(activeVersions));
-          } else if (activeRules && activeRules.length > 0) {
+          } else if (fsTeacherData.rules && fsTeacherData.rules.length > 0) {
             console.log('MIGRATION: Auto-creating initial timetableVersion from teachers/{uid}.rules');
             const vYear = activeTeacher.academicYear || '2026-2027';
             const migrated = await saveOrSplitTimetableVersionInFirestore(
               user.uid,
               vYear,
               1,
-              activeRules,
+              fsTeacherData.rules,
               'Thời khóa biểu ban đầu'
             );
             if (isCancelled) return;
@@ -521,19 +466,25 @@ export default function App() {
   };
 
   const handleAddLesson = (dayOfWeek: 'Thứ 2' | 'Thứ 3' | 'Thứ 4' | 'Thứ 5' | 'Thứ 6', period: number) => {
+    const defaultSubject = teacher.subjects?.[0] || 'Môn học';
+    const defaultClass = teacher.assignedClasses?.[0] || '1A1';
+    const defaultGrade = teacher.grades?.[0] || 'Khối 1';
+
     const newItem: ScheduleItem = {
       id: `s-custom-${Date.now()}`,
       teacherId: teacher.uid,
-      academicYear: teacher.academicYear,
-      semester: teacher.semester,
+      academicYear: normalizeAcademicYear(teacher.academicYear),
+      semester: teacher.semester || 'Học kỳ I',
       weekNumber: currentWeek,
       dayOfWeek,
       period,
-      className: '4A1',
-      subject: 'Tin học',
-      grade: 'Khối 4',
+      className: defaultClass,
+      subject: defaultSubject,
+      grade: defaultGrade,
       lessonTitle: 'Bài học mới bổ sung',
       status: 'unprepared',
+      generatedFromTKB: false,
+      source: 'manual',
       updatedAt: new Date().toISOString(),
     };
     updateSchedulesWithHistory([...schedules, newItem]);
@@ -663,13 +614,13 @@ export default function App() {
 
   // Auto Generate Schedule from Timetable Rules + Curriculums with Versioning
   const handleGenerateFromTKB = (weekNumber?: number) => {
-    const year = teacher.academicYear || '2026-2027';
+    const year = normalizeAcademicYear(teacher.academicYear);
     const weeksToProcess = weekNumber ? [weekNumber] : Array.from({ length: 35 }, (_, i) => i + 1);
     let existing = [...schedules];
     let createdCount = 0;
     let skippedCount = 0;
 
-    // Filter: Only create schedule items for subjects currently assigned to the teacher (if configured)
+    // Filter: Only create schedule items for subjects currently assigned to the teacher
     const teacherSubjects = (teacher.subjects || []).map(s => s.trim().toLowerCase());
 
     for (const w of weeksToProcess) {
@@ -688,22 +639,13 @@ export default function App() {
         }
       }
 
-      console.log(`[TKB DATA PIPELINE] Week ${w}:`, {
-        weekNumber: w,
-        academicYear: year,
-        versionId: verId,
-        fromWeek: verFromWeek,
-        toWeek: verToWeek,
-        ruleCount: activeRules.length,
-        teacherSubjects
-      });
-
-      // Filter activeRules strictly by teacher.subjects
+      // Filter activeRules strictly by teacher.subjects. If teacher.subjects is empty, matchingRules MUST be []
       const matchingRules = teacherSubjects.length > 0
         ? activeRules.filter(r => r.subject && teacherSubjects.includes(r.subject.trim().toLowerCase()))
-        : activeRules;
+        : [];
 
       const validSlots = new Set<string>();
+      let weekCreated = 0;
 
       matchingRules.forEach((rule, idx) => {
         const normSession = getNormalizedSession(rule);
@@ -711,18 +653,6 @@ export default function App() {
         const ruleSubjectNorm = (rule.subject || '').trim().toLowerCase();
 
         validSlots.add(`${rule.className}_${rule.dayOfWeek}_${normSession}_${normPeriod}_${ruleSubjectNorm}`);
-
-        console.log('[TKB -> LBG ITEM]', {
-          source: 'TimetableVersion',
-          weekNumber: w,
-          versionId: verId,
-          ruleId: rule.id,
-          className: rule.className,
-          subject: rule.subject,
-          dayOfWeek: rule.dayOfWeek,
-          period: normPeriod,
-          session: normSession
-        });
 
         const curr = curriculums.find(c => c.grade === rule.grade && c.subject?.trim().toLowerCase() === ruleSubjectNorm);
         const ppctItem = curr?.items.find(i => i.week === w) || curr?.items.find(i => i.periodNumber === w);
@@ -743,8 +673,9 @@ export default function App() {
           if (itemSubNorm === ruleSubjectNorm) {
             existing[existingIdx] = {
               ...item,
-              generatedFromTKB: item.generatedFromTKB ?? true,
-              source: item.source ?? 'timetable'
+              generatedFromTKB: true,
+              source: 'timetable',
+              academicYear: year,
             };
             skippedCount++;
           } else {
@@ -759,9 +690,11 @@ export default function App() {
               requirements: ppctItem?.requirements,
               generatedFromTKB: true,
               source: 'timetable',
+              academicYear: year,
               updatedAt: new Date().toISOString(),
             };
             createdCount++;
+            weekCreated++;
           }
         } else {
           // Create new item for this slot
@@ -794,27 +727,47 @@ export default function App() {
 
           existing.push(createdItem);
           createdCount++;
+          weekCreated++;
         }
       });
 
-      // Remove auto-generated TKB slots for week w that no longer exist in validSlots
+      let weekRemoved = 0;
+
+      // Remove auto-generated TKB slots for week w that no longer exist in validSlots or not in teacher.subjects
       existing = existing.filter(s => {
         if (s.weekNumber !== w) return true;
-        // Keep manual or user-edited items
-        if (s.generatedFromTKB === false || s.source === 'manual') return true;
 
-        // Clean up auto-generated TKB items that are no longer in validSlots or not in teacher.subjects
-        if (s.generatedFromTKB === true || s.source === 'timetable') {
-          const sSubNorm = (s.subject || '').trim().toLowerCase();
-          if (teacherSubjects.length > 0 && !teacherSubjects.includes(sSubNorm)) return false;
-          const sNormSession = getNormalizedSession(s);
-          const sNormPeriod = getNormalizedPeriod(s);
-          const slotKey = `${s.className}_${s.dayOfWeek}_${sNormSession}_${sNormPeriod}_${sSubNorm}`;
-          return validSlots.has(slotKey);
+        // Keep manual items
+        if (s.source === 'manual' || s.generatedFromTKB === false) return true;
+
+        // Check subject & validSlots
+        const sSubNorm = (s.subject || '').trim().toLowerCase();
+        if (!teacherSubjects.includes(sSubNorm)) {
+          weekRemoved++;
+          return false;
         }
 
-        // For legacy items without explicitly set generatedFromTKB flag, preserve safely
-        return true;
+        const sNormSession = getNormalizedSession(s);
+        const sNormPeriod = getNormalizedPeriod(s);
+        const slotKey = `${s.className}_${s.dayOfWeek}_${sNormSession}_${sNormPeriod}_${sSubNorm}`;
+        const isValid = validSlots.has(slotKey);
+        if (!isValid) {
+          weekRemoved++;
+        }
+        return isValid;
+      });
+
+      console.log('[TKB-LBG]', {
+        weekNumber: w,
+        academicYear: year,
+        versionId: verId,
+        fromWeek: verFromWeek,
+        toWeek: verToWeek,
+        rulesCount: activeRules.length,
+        teacherSubjects,
+        matchedRules: matchingRules.length,
+        generatedSchedules: weekCreated,
+        removedSchedules: weekRemoved
       });
     }
 
