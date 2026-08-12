@@ -171,73 +171,6 @@ export const TimetableView: React.FC<TimetableViewProps> = ({
     alert(`✅ Đã thêm lớp "${cleaned}" vào danh sách phân công!`);
   };
 
-  // Auto-generate Timetable Rules algorithm based strictly on assigned classes & subjects
-  const handleAutoGenerateTimetableRules = () => {
-    const missingDetails: string[] = [];
-    if (!assignedClasses || assignedClasses.length === 0) {
-      missingDetails.push('• Lớp dạy phân công: Chưa có lớp học nào trong danh sách.');
-    }
-    const teacherSubs = teacher.subjects || [];
-    if (teacherSubs.length === 0) {
-      missingDetails.push('• Môn học phân công: Chưa có môn học nào được phân công.');
-    }
-
-    if (missingDetails.length > 0) {
-      alert(
-        '⚠️ CHƯA ĐỦ DỮ LIỆU ĐỂ LẬP TKB TỰ ĐỘNG!\n\n' +
-        'Để tự động tạo Thời khóa biểu, hệ thống cần tối thiểu 1 Lớp dạy và 1 Môn học:\n' +
-        missingDetails.join('\n') +
-        '\n\nVui lòng thêm Lớp dạy hoặc Môn học phân công trước khi chọn Lập TKB tự động.'
-      );
-      return;
-    }
-
-    const newRules: ClassTimetableRule[] = [];
-    const occupiedSlots = new Set<string>();
-
-    const sessions: Array<'Sáng' | 'Chiều'> = ['Sáng', 'Chiều'];
-    const maxPeriods: Record<'Sáng' | 'Chiều', number> = { 'Sáng': 4, 'Chiều': 3 };
-
-    const allPossibleSlots: Array<{ dayOfWeek: 'Thứ 2' | 'Thứ 3' | 'Thứ 4' | 'Thứ 5' | 'Thứ 6'; session: 'Sáng' | 'Chiều'; period: number }> = [];
-
-    DAYS_OF_WEEK.forEach(dayOfWeek => {
-      sessions.forEach(session => {
-        for (let period = 1; period <= maxPeriods[session]; period++) {
-          allPossibleSlots.push({ dayOfWeek, session, period });
-        }
-      });
-    });
-
-    let slotIndex = 0;
-    assignedClasses.forEach(cls => {
-      teacherSubs.forEach(subject => {
-        const grade = inferGradeFromClassName(cls);
-        while (slotIndex < allPossibleSlots.length) {
-          const slot = allPossibleSlots[slotIndex];
-          slotIndex++;
-          const slotKey = `${slot.dayOfWeek}_${slot.session}_${slot.period}`;
-          if (!occupiedSlots.has(slotKey)) {
-            occupiedSlots.add(slotKey);
-            newRules.push({
-              id: `r-auto-${Date.now()}-${cls}-${subject.replace(/\s+/g, '')}-${slot.dayOfWeek}-${slot.session}-${slot.period}`,
-              className: cls,
-              grade,
-              subject,
-              dayOfWeek: slot.dayOfWeek,
-              session: slot.session,
-              period: slot.period,
-            });
-            break;
-          }
-        }
-      });
-    });
-
-    setRules(newRules);
-    onSaveTimetableRules(newRules, applyFromWeek, versionNameInput || `TKB Tự Động Tuần ${applyFromWeek}`);
-    alert(`⚡ Đã lập lịch TKB tự động thành công cho ${assignedClasses.length} lớp và ${teacherSubs.length} môn học (${newRules.length} tiết)!`);
-  };
-
   // Quick add class from dropdown callback
   const handleQuickAddClassFromDropdown = (className: string) => {
     const cleaned = normalizeClassName(className);
@@ -406,16 +339,6 @@ export const TimetableView: React.FC<TimetableViewProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-          <button
-            type="button"
-            onClick={handleAutoGenerateTimetableRules}
-            className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-extrabold shadow-md shadow-purple-500/20 transition-all flex items-center justify-center space-x-2 cursor-pointer"
-            title="Tự động xếp Thời khóa biểu cố định dựa trên danh sách Lớp dạy & Môn học phân công"
-          >
-            <Sparkles className="w-4 h-4" />
-            <span>⚡ LẬP LỊCH TKB TỰ ĐỘNG</span>
-          </button>
-
           <button
             type="button"
             onClick={() => {
