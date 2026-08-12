@@ -94,7 +94,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
     weekNumber: currentWeek,
     month: 'all',
     semester: 'all',
-    academicYear: teacher?.academicYear || '2025-2026',
+    academicYear: teacher?.academicYear || '2026-2027',
     grade: 'all',
     className: 'all',
     subject: 'all',
@@ -234,7 +234,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
           </button>
 
           <button
-            onClick={() => setFilter({ weekNumber: currentWeek, month: 'all', semester: 'all', academicYear: teacher?.academicYear || '2025-2026', grade: 'all', className: 'all', subject: 'all', status: 'all', searchQuery: '' })}
+            onClick={() => setFilter({ weekNumber: currentWeek, month: 'all', semester: 'all', academicYear: teacher?.academicYear || '2026-2027', grade: 'all', className: 'all', subject: 'all', status: 'all', searchQuery: '' })}
             className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-xl text-xs font-bold transition-colors"
           >
             <RefreshCw className="w-3.5 h-3.5" />
@@ -274,7 +274,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
                     TUẦN {currentWeek}
                   </span>
                   <span className="text-[10px] text-indigo-600 dark:text-indigo-300 font-extrabold bg-indigo-500/15 px-1.5 py-0.5 rounded-md">
-                    {getWeekRangeFormatted(currentWeek, teacher?.academicYear || '2025-2026', customWeekDatesMap, academicYearConfig?.week1StartDate, academicYearConfig?.customWeekMap)}
+                    {getWeekRangeFormatted(currentWeek, teacher?.academicYear || '2026-2027', customWeekDatesMap, academicYearConfig?.week1StartDate, academicYearConfig?.customWeekMap)}
                   </span>
                 </div>
                 <div className="text-[10px] text-indigo-500 dark:text-indigo-400 font-bold flex items-center space-x-0.5">
@@ -426,7 +426,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
             {/* Table Body */}
             <tbody className="divide-y divide-slate-200/80 dark:divide-slate-800">
               {DAYS_OF_WEEK.map((day) => {
-                const dateStr = getWeekDayDate(currentWeek, day, teacher?.academicYear || '2025-2026', customWeekDatesMap, academicYearConfig?.week1StartDate, academicYearConfig?.customWeekMap);
+                const dateStr = getWeekDayDate(currentWeek, day, teacher?.academicYear || '2026-2027', customWeekDatesMap, academicYearConfig?.week1StartDate, academicYearConfig?.customWeekMap);
                 const dayItems = filteredSchedules
                   .filter(s => s.dayOfWeek === day)
                   .sort((a, b) => {
@@ -585,7 +585,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
           email: '',
           subjects: ['Tin học'],
           assignedClasses: assignedClassList,
-          academicYear: teacher?.academicYear || '2025-2026',
+          academicYear: teacher?.academicYear || '2026-2027',
           semester: 'Học kỳ I'
         }}
         curriculums={curriculums}
@@ -662,7 +662,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
           setCurrentWeek(weekNum);
           setFilter((prev) => ({ ...prev, weekNumber: weekNum }));
         }}
-        academicYear={teacher?.academicYear || '2025-2026'}
+        academicYear={teacher?.academicYear || '2026-2027'}
         schedules={schedules}
       />
 

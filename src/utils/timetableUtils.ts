@@ -1,6 +1,6 @@
 import { ClassTimetableRule, TimetableVersion } from '../types';
 import { getNormalizedSession, getNormalizedPeriod } from './classUtils';
-import { getWeekNumberFromDate } from './dateWeekUtils';
+import { getWeekNumberFromDate, normalizeAcademicYear } from './dateWeekUtils';
 
 /**
  * Finds the TimetableVersion matching a specific academic year and week number.
@@ -13,11 +13,10 @@ export function getTimetableVersionForWeek(
 ): TimetableVersion | null {
   if (!versions || versions.length === 0) return null;
 
-  const normYear = academicYear ? academicYear.replace(/\s+/g, '') : '';
+  const normYear = normalizeAcademicYear(academicYear);
 
   const filtered = versions.filter(v => {
-    if (!normYear) return true;
-    const vYear = v.academicYear ? v.academicYear.replace(/\s+/g, '') : '';
+    const vYear = normalizeAcademicYear(v.academicYear);
     return vYear === normYear;
   });
 
@@ -56,14 +55,7 @@ export function getScheduleForTeachingSlot(
   } else if (rulesFallback && Array.isArray(rulesFallback)) {
     rules = rulesFallback;
   } else {
-    try {
-      const saved = localStorage.getItem('smart_schedule_rules');
-      if (saved) {
-        rules = JSON.parse(saved);
-      }
-    } catch (e) {
-      rules = [];
-    }
+    rules = [];
   }
 
   if (!rules || rules.length === 0) return null;

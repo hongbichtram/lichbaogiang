@@ -79,13 +79,13 @@ export const AddLessonModal: React.FC<AddLessonModalProps> = ({
 
   // Active timetable rules for the selected week
   const activeRulesForWeek = useMemo(() => {
-    const year = teacher?.academicYear || '2025-2026';
+    const year = teacher?.academicYear || '2026-2027';
     if (timetableVersions && timetableVersions.length > 0) {
       const ver = getTimetableVersionForWeek(timetableVersions, year, currentWeek);
       if (ver?.rules) return ver.rules;
     }
-    return timetableRules;
-  }, [timetableVersions, teacher?.academicYear, currentWeek, timetableRules]);
+    return [];
+  }, [timetableVersions, teacher?.academicYear, currentWeek]);
 
   // Find matching slot in Timetable (TKB)
   const tkbSlot = useMemo(() => {
@@ -215,7 +215,7 @@ export const AddLessonModal: React.FC<AddLessonModalProps> = ({
       teacherId: teacher.uid,
       curriculumId: matchingCurriculum?.id,
       lessonId: suggestedPpctItem?.id,
-      academicYear: teacher.academicYear || '2025-2026',
+      academicYear: teacher.academicYear || '2026-2027',
       semester: teacher.semester || 'Học kỳ I',
       weekNumber: currentWeek,
       dayOfWeek: dayOfWeek,
@@ -276,7 +276,7 @@ export const AddLessonModal: React.FC<AddLessonModalProps> = ({
               className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
             >
               {DAYS_LIST.map((day) => {
-                const dateStr = getWeekDayDate(currentWeek, day, teacher.academicYear || '2025-2026');
+                const dateStr = getWeekDayDate(currentWeek, day, teacher.academicYear || '2026-2027');
                 return (
                   <option key={day} value={day}>
                     {day} - {dateStr}

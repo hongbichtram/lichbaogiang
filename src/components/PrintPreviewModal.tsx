@@ -22,7 +22,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
     email: 'hongbichtram13@gmail.com',
     schoolName: 'Trường Tiểu học Nguyễn Du',
     teacherCode: 'GV01',
-    academicYear: '2025-2026',
+    academicYear: '2026-2027',
     semester: 'Học kỳ I',
     subjects: ['Tin học'],
     grades: ['Khối 3', 'Khối 4', 'Khối 5'],

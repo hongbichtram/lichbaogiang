@@ -395,7 +395,21 @@ export default function App() {
           }
 
           if (isCancelled) return;
-          console.log('[DATA LOAD] Data load phase completed successfully.');
+          const localItemsCount = (() => {
+            try {
+              const saved = localStorage.getItem('smart_schedule_items');
+              return saved ? JSON.parse(saved).length : 0;
+            } catch { return 0; }
+          })();
+
+          console.log('[HYDRATION]', {
+            authReady: !!user,
+            loadingSchedules: false,
+            firestoreSchedules: fsSchedulesResult.status === 'success' ? (fsSchedulesResult.exists ? fsSchedulesResult.items.length : 'EMPTY') : 'ERROR',
+            localSchedules: localItemsCount,
+            dataReady: true,
+            isHydrating: false
+          });
         } catch (err) {
           console.error('Failed to sync Firestore data on login:', err);
         } finally {
@@ -428,6 +442,18 @@ export default function App() {
       return;
     }
     const sanitized = ensureUniqueScheduleIds(newSchedules);
+
+    console.log('[SCHEDULE-SAVE]', {
+      reason: 'user_action_or_generate',
+      dataReady,
+      isHydrating: isHydratingRef.current,
+      itemCount: sanitized.length
+    });
+
+    if (sanitized.length === 0) {
+      console.log('[SCHEDULE-SAVE-ZERO-ITEMS-CHECK] itemCount is 0. Reason: USER_INTENTIONAL_CLEAR or NO_TKB_SLOTS');
+    }
+
     setAutoSaveStatus('saving');
     setHistory(prev => [...prev, schedules]);
     setRedoStack([]);
@@ -446,7 +472,7 @@ export default function App() {
   };
 
   const handleUndo = () => {
-    if (!dataReady || history.length === 0) return;
+    if (!dataReady || isHydratingRef.current || history.length === 0) return;
     const previous = history[history.length - 1];
     setRedoStack(prev => [schedules, ...prev]);
     setHistory(prev => prev.slice(0, -1));
@@ -458,7 +484,7 @@ export default function App() {
   };
 
   const handleRedo = () => {
-    if (!dataReady || redoStack.length === 0) return;
+    if (!dataReady || isHydratingRef.current || redoStack.length === 0) return;
     const next = redoStack[0];
     setHistory(prev => [...prev, schedules]);
     setRedoStack(prev => prev.slice(1));
@@ -637,7 +663,7 @@ export default function App() {
 
   // Auto Generate Schedule from Timetable Rules + Curriculums with Versioning
   const handleGenerateFromTKB = (weekNumber?: number) => {
-    const year = teacher.academicYear || '2025-2026';
+    const year = teacher.academicYear || '2026-2027';
     const weeksToProcess = weekNumber ? [weekNumber] : Array.from({ length: 35 }, (_, i) => i + 1);
     let existing = [...schedules];
     let createdCount = 0;
@@ -649,14 +675,28 @@ export default function App() {
     for (const w of weeksToProcess) {
       let activeRules: ClassTimetableRule[] = [];
       let verId = 'NONE';
+      let verFromWeek = 0;
+      let verToWeek = 0;
 
       if (timetableVersions && timetableVersions.length > 0) {
         const ver = getTimetableVersionForWeek(timetableVersions, year, w);
         if (ver && ver.rules) {
           activeRules = ver.rules;
           verId = ver.id;
+          verFromWeek = ver.fromWeek;
+          verToWeek = ver.toWeek;
         }
       }
+
+      console.log(`[TKB DATA PIPELINE] Week ${w}:`, {
+        weekNumber: w,
+        academicYear: year,
+        versionId: verId,
+        fromWeek: verFromWeek,
+        toWeek: verToWeek,
+        ruleCount: activeRules.length,
+        teacherSubjects
+      });
 
       // Filter activeRules strictly by teacher.subjects
       const matchingRules = teacherSubjects.length > 0
@@ -672,16 +712,16 @@ export default function App() {
 
         validSlots.add(`${rule.className}_${rule.dayOfWeek}_${normSession}_${normPeriod}_${ruleSubjectNorm}`);
 
-        console.log('[GENERATE]', {
+        console.log('[TKB -> LBG ITEM]', {
+          source: 'TimetableVersion',
           weekNumber: w,
           versionId: verId,
-          day: rule.dayOfWeek,
-          session: normSession,
-          period: normPeriod,
+          ruleId: rule.id,
           className: rule.className,
-          ruleSubject: rule.subject,
-          teacherSubjects,
-          source: verId !== 'NONE' ? 'VERSION_RULE' : 'NONE'
+          subject: rule.subject,
+          dayOfWeek: rule.dayOfWeek,
+          period: normPeriod,
+          session: normSession
         });
 
         const curr = curriculums.find(c => c.grade === rule.grade && c.subject?.trim().toLowerCase() === ruleSubjectNorm);
@@ -814,7 +854,7 @@ export default function App() {
     setTimetableRules(newRules);
     localStorage.setItem('smart_schedule_rules', JSON.stringify(newRules));
 
-    const year = teacher.academicYear || '2025-2026';
+    const year = teacher.academicYear || '2026-2027';
     if (authUser?.uid) {
       const updatedVersions = await saveOrSplitTimetableVersionInFirestore(
         authUser.uid,

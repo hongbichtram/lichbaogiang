@@ -32,7 +32,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
 
   const handleViewSchedule = () => {
-    const targetWeek = getWeekNumberFromDate(selectedDate, teacher?.academicYear || '2025-2026');
+    const targetWeek = getWeekNumberFromDate(selectedDate, teacher?.academicYear || '2026-2027');
     if (setCurrentWeek) {
       setCurrentWeek(targetWeek);
     }
@@ -73,7 +73,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       const itemActualDate = getActualDayDate(
         item.weekNumber,
         item.dayOfWeek,
-        teacher?.academicYear || '2025-2026',
+        teacher?.academicYear || '2026-2027',
         customMap
       );
       return itemActualDate === targetDateStr;

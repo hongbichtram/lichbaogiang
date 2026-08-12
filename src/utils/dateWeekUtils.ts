@@ -155,13 +155,22 @@ export const getWeekNumberFromDate = (
   return Math.floor(diffDays / 7) + 1;
 };
 
-export const getAcademicYearStartYear = (academicYear: string = '2025-2026'): number => {
-  const match = academicYear.match(/\d{4}/);
-  return match ? parseInt(match[0], 10) : 2025;
+export const normalizeAcademicYear = (academicYear?: string): string => {
+  if (!academicYear) return '2026-2027';
+  const cleaned = academicYear.replace(/\s+/g, '').replace(/[\u2010-\u2015\u2212–—]/g, '-');
+  const match = cleaned.match(/\d{4}-\d{4}/);
+  if (match) return match[0];
+  return cleaned || '2026-2027';
+};
+
+export const getAcademicYearStartYear = (academicYear: string = '2026-2027'): number => {
+  const norm = normalizeAcademicYear(academicYear);
+  const match = norm.match(/\d{4}/);
+  return match ? parseInt(match[0], 10) : 2026;
 };
 
 // Legacy fallback
-export const getWeek1Monday = (academicYear: string = '2025-2026'): Date => {
+export const getWeek1Monday = (academicYear: string = '2026-2027'): Date => {
   const startYear = getAcademicYearStartYear(academicYear);
   const sept1 = new Date(startYear, 8, 1);
   const day = sept1.getDay();
@@ -172,7 +181,7 @@ export const getWeek1Monday = (academicYear: string = '2025-2026'): Date => {
   return monday;
 };
 
-export const getWeekStartEndDates = (weekNumber: number, academicYear: string = '2025-2026') => {
+export const getWeekStartEndDates = (weekNumber: number, academicYear: string = '2026-2027') => {
   const week1Monday = getWeek1Monday(academicYear);
   const monday = new Date(week1Monday);
   monday.setDate(week1Monday.getDate() + (weekNumber - 1) * 7);
@@ -217,7 +226,7 @@ export const convertDDMMYYYYToISO = (ddmmyyyy: string): string => {
   return ddmmyyyy;
 };
 
-export const getDefaultWeekDates = (weekNumber: number, academicYear: string = '2025-2026'): CustomWeekDate => {
+export const getDefaultWeekDates = (weekNumber: number, academicYear: string = '2026-2027'): CustomWeekDate => {
   const { monday, friday } = getWeekStartEndDates(weekNumber, academicYear);
   
   const d2 = new Date(monday);
@@ -262,7 +271,7 @@ export const calculateWeek5DaysFromMonday = (startMonday: Date): CustomWeekDate 
 export const propagateWeekDatesFrom = (
   fromWeek: number,
   startISO: string,
-  academicYear: string = '2025-2026',
+  academicYear: string = '2026-2027',
   totalWeeks: number = 35
 ): CustomWeekDatesMap => {
   const map = loadCustomWeekDatesMap();
@@ -293,7 +302,7 @@ export const resetWeekDatesFrom = (
 
 export const getWeekRangeFormatted = (
   weekNumber: number, 
-  academicYear: string = '2025-2026',
+  academicYear: string = '2026-2027',
   customMap?: CustomWeekDatesMap,
   week1StartDate?: string,
   customWeekMap?: Record<number, { startDate: string; endDate: string }>
@@ -335,7 +344,7 @@ export const getDayOfWeekStrFromUTC = (utcDayIndex: number): string => {
 export const getActualDayDate = (
   weekNumber: number, 
   dayOfWeek: string, 
-  academicYear: string = '2025-2026',
+  academicYear: string = '2026-2027',
   customMap?: CustomWeekDatesMap,
   week1StartDate?: string,
   customWeekMap?: Record<number, { startDate: string; endDate: string }>

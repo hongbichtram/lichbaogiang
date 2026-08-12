@@ -335,7 +335,7 @@ export const fetchTimetableVersionsFromFirestore = async (uid: string): Promise<
       versions.push({
         id: docSnap.id,
         uid: data.uid || uid,
-        academicYear: data.academicYear || '2025-2026',
+        academicYear: data.academicYear || '2026-2027',
         versionName: data.versionName || 'Thời khóa biểu',
         fromWeek: Number(data.fromWeek) || 1,
         toWeek: Number(data.toWeek) || 35,
@@ -378,6 +378,8 @@ export const deleteTimetableVersionFromFirestore = async (uid: string, versionId
   }
 };
 
+import { normalizeAcademicYear } from '../utils/dateWeekUtils';
+
 export const saveOrSplitTimetableVersionInFirestore = async (
   uid: string,
   academicYear: string,
@@ -390,7 +392,8 @@ export const saveOrSplitTimetableVersionInFirestore = async (
   try {
     // 1. Fetch current versions
     const existingVersions = await fetchTimetableVersionsFromFirestore(uid);
-    const yearVersions = existingVersions.filter(v => v.academicYear === academicYear);
+    const normYear = normalizeAcademicYear(academicYear);
+    const yearVersions = existingVersions.filter(v => normalizeAcademicYear(v.academicYear) === normYear);
 
     const batch = writeBatch(db);
     const now = new Date().toISOString();

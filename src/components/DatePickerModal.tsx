@@ -24,7 +24,7 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
   onClose,
   currentWeek,
   onSelectWeek,
-  academicYear = '2025-2026',
+  academicYear = '2026-2027',
   schedules = [],
 }) => {
   if (!isOpen) return null;
