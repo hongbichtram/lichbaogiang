@@ -613,12 +613,15 @@ export default function App() {
   };
 
   // Auto Generate Schedule from Timetable Rules + Curriculums with Versioning
-  const handleGenerateFromTKB = (weekNumber?: number) => {
+  const handleGenerateFromTKB = (weekNumber?: number, customVersions?: TimetableVersion[], customTeacher?: TeacherProfile) => {
+    const activeTeacherProfile = customTeacher || teacher;
+    const activeVersionsList = customVersions || timetableVersions;
+
     const targetWeek = weekNumber || currentWeek;
     console.log('[TKB-LBG][CLICK] Executing handleGenerateFromTKB for week:', targetWeek);
     console.log('[TKB-LBG][WEEK]', targetWeek);
 
-    const year = normalizeAcademicYear(teacher.academicYear);
+    const year = normalizeAcademicYear(activeTeacherProfile.academicYear);
     console.log('[TKB-LBG][ACADEMIC_YEAR]', year);
 
     const weeksToProcess = weekNumber ? [weekNumber] : Array.from({ length: 35 }, (_, i) => i + 1);
@@ -628,10 +631,10 @@ export default function App() {
     let hasValidVersion = false;
     let hasMatchedRules = false;
 
-    const teacherSubjects = (teacher.subjects || []).map(s => s.trim().toLowerCase());
+    const teacherSubjects = (activeTeacherProfile.subjects || []).map(s => s.trim().toLowerCase());
 
     for (const w of weeksToProcess) {
-      const ver = getTimetableVersionForWeek(timetableVersions, year, w);
+      const ver = getTimetableVersionForWeek(activeVersionsList, year, w);
 
       if (!ver) {
         console.log('[TKB-LBG][VERSION]', null);
@@ -824,6 +827,7 @@ export default function App() {
     } else {
       console.log('SETTINGS SUBJECT SAVE SUCCESS (Local storage)');
     }
+    handleGenerateFromTKB(undefined, undefined, newProfile);
   };
 
   const handleSaveTimetableRules = async (newRules: ClassTimetableRule[], fromWeek: number = 1, versionName?: string) => {
@@ -831,6 +835,8 @@ export default function App() {
     localStorage.setItem('smart_schedule_rules', JSON.stringify(newRules));
 
     const year = teacher.academicYear || '2026-2027';
+    let finalVersions: TimetableVersion[] = [];
+
     if (authUser?.uid) {
       const updatedVersions = await saveOrSplitTimetableVersionInFirestore(
         authUser.uid,
@@ -841,6 +847,7 @@ export default function App() {
       );
       setTimetableVersions(updatedVersions);
       localStorage.setItem('smart_schedule_timetable_versions', JSON.stringify(updatedVersions));
+      finalVersions = updatedVersions;
     } else {
       const now = new Date().toISOString();
       const yearVers = timetableVersions.filter(v => v.academicYear === year);
@@ -950,7 +957,10 @@ export default function App() {
       const combined = [...otherVers, ...adjusted];
       setTimetableVersions(combined);
       localStorage.setItem('smart_schedule_timetable_versions', JSON.stringify(combined));
+      finalVersions = combined;
     }
+
+    handleGenerateFromTKB(undefined, finalVersions);
   };
 
   const handleDeleteTimetableVersion = async (versionId: string) => {
@@ -966,6 +976,7 @@ export default function App() {
       localStorage.setItem('smart_schedule_timetable_versions', JSON.stringify(updatedVersions));
 
       console.log(`[DELETE VERSION] Successfully deleted version ${versionId}. Remaining count: ${updatedVersions.length}`);
+      handleGenerateFromTKB(undefined, updatedVersions);
     } catch (err) {
       console.error('Failed to delete timetable version:', err);
     }
@@ -1108,7 +1119,6 @@ export default function App() {
             onUndo={handleUndo}
             onRedo={handleRedo}
             onNavigate={setCurrentTab}
-            onGenerateFromTKB={handleGenerateFromTKB}
           />
         )}
 
