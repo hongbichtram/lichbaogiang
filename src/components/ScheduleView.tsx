@@ -158,13 +158,13 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
 
   // Active timetable rules for current week version
   const activeRulesForWeek = useMemo(() => {
-    const year = teacher?.academicYear || '2025-2026';
+    const year = teacher?.academicYear || '2026-2027';
     if (timetableVersions && timetableVersions.length > 0) {
       const ver = getTimetableVersionForWeek(timetableVersions, year, currentWeek);
-      if (ver?.rules) return ver.rules;
+      return ver?.rules || [];
     }
-    return timetableRules;
-  }, [timetableVersions, teacher?.academicYear, currentWeek, timetableRules]);
+    return [];
+  }, [timetableVersions, teacher?.academicYear, currentWeek]);
 
   // Filter schedules for current week
   const filteredSchedules = useMemo(() => {

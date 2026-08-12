@@ -597,6 +597,15 @@ export const fetchPPCTsFromFirestore = async (uid: string): Promise<PPCTCurricul
 };
 
 // 3. Weekly Schedules
+export type FetchSchedulesResult = {
+  status: 'success';
+  exists: boolean;
+  items: ScheduleItem[];
+} | {
+  status: 'error';
+  error: any;
+};
+
 export const saveSchedulesToFirestore = async (uid: string, schedules: ScheduleItem[]) => {
   console.log('FIRESTORE SAVE START', { collection: 'weeklySchedules', uid, count: schedules.length });
   if (!uid) {
@@ -612,11 +621,11 @@ export const saveSchedulesToFirestore = async (uid: string, schedules: ScheduleI
   }
 };
 
-export const fetchSchedulesFromFirestore = async (uid: string): Promise<ScheduleItem[] | null> => {
+export const fetchSchedulesFromFirestore = async (uid: string): Promise<FetchSchedulesResult> => {
   console.log('FIRESTORE LOAD START', { collection: 'weeklySchedules', uid });
   if (!uid) {
     console.error('FIRESTORE ERROR', { collection: 'weeklySchedules', uid, action: 'read', error: 'User UID is empty' });
-    return null;
+    return { status: 'error', error: 'User UID is empty' };
   }
   try {
     const ref = doc(db, 'weeklySchedules', uid);
@@ -625,12 +634,14 @@ export const fetchSchedulesFromFirestore = async (uid: string): Promise<Schedule
     console.log('FIRESTORE LOAD SUCCESS', { collection: 'weeklySchedules', uid, dataFound: exists });
     if (exists) {
       const data = snap.data();
-      return data.items || [];
+      return { status: 'success', exists: true, items: data.items || [] };
+    } else {
+      return { status: 'success', exists: false, items: [] };
     }
   } catch (err) {
     console.error('FIRESTORE ERROR', { collection: 'weeklySchedules', uid, action: 'read', error: err });
+    return { status: 'error', error: err };
   }
-  return null;
 };
 
 // 4. Custom Week Dates Map

@@ -15,14 +15,11 @@ export function getTimetableVersionForWeek(
 
   const normYear = academicYear ? academicYear.replace(/\s+/g, '') : '';
 
-  let filtered = versions.filter(v => {
+  const filtered = versions.filter(v => {
+    if (!normYear) return true;
     const vYear = v.academicYear ? v.academicYear.replace(/\s+/g, '') : '';
     return vYear === normYear;
   });
-
-  if (filtered.length === 0) {
-    filtered = versions;
-  }
 
   const match = filtered.find(v => weekNumber >= v.fromWeek && weekNumber <= v.toWeek);
   return match || null;

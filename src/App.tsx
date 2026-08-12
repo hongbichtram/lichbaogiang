@@ -52,10 +52,10 @@ const DEFAULT_TEACHER: TeacherProfile = {
   email: 'hongbichtram13@gmail.com',
   schoolName: 'Trường Tiểu học Nguyễn Du',
   teacherCode: 'GV-2024-88',
-  subjects: ['Tin học', 'Toán'],
+  subjects: ['Tin học'],
   grades: ['Khối 3', 'Khối 4', 'Khối 5'],
   assignedClasses: ['3A1', '3A2', '3A3', '4A1', '4A2', '4A3', '5A1', '5A2', '5A3'],
-  academicYear: '2024 - 2025',
+  academicYear: '2026 - 2027',
   semester: 'Học kỳ I',
 };
 
@@ -68,53 +68,34 @@ const DEFAULT_RULES: ClassTimetableRule[] = [
   { id: 'r5', className: '4A1', grade: 'Khối 4', subject: 'Tin học', dayOfWeek: 'Thứ 4', period: 6 },
   { id: 'r6', className: '4A3', grade: 'Khối 4', subject: 'Tin học', dayOfWeek: 'Thứ 5', period: 1 },
   { id: 'r7', className: '5A1', grade: 'Khối 5', subject: 'Tin học', dayOfWeek: 'Thứ 5', period: 2 },
-  { id: 'r8', className: '4A2', grade: 'Khối 4', subject: 'Toán', dayOfWeek: 'Thứ 6', period: 1 },
 ];
 
 // Generate initial seed schedules matching teacher's registered subjects and active TimetableVersions
-function generateInitialSchedules(teacherProfile?: TeacherProfile, rulesList?: ClassTimetableRule[], timetableVersions?: TimetableVersion[]): ScheduleItem[] {
+function generateInitialSchedules(teacherProfile?: TeacherProfile, timetableVersions?: TimetableVersion[]): ScheduleItem[] {
   const items: ScheduleItem[] = [];
-  const profile = teacherProfile || DEFAULT_TEACHER;
-  const year = profile.academicYear || '2025-2026';
+  if (!teacherProfile || !timetableVersions || timetableVersions.length === 0) {
+    return items;
+  }
+  const profile = teacherProfile;
+  const year = profile.academicYear || '2026-2027';
   
   const teacherSubjects = (profile.subjects || []).map(s => s.trim().toLowerCase());
+  if (teacherSubjects.length === 0) return items;
 
   for (let w = 1; w <= 35; w++) {
-    let weekRules: ClassTimetableRule[] = [];
-    let versionId = 'NONE';
+    const ver = getTimetableVersionForWeek(timetableVersions, year, w);
+    if (!ver || !ver.rules || ver.rules.length === 0) continue;
 
-    if (timetableVersions && timetableVersions.length > 0) {
-      const ver = getTimetableVersionForWeek(timetableVersions, year, w);
-      if (ver && ver.rules) {
-        weekRules = ver.rules;
-        versionId = ver.id;
-      }
-    } else if (rulesList && rulesList.length > 0) {
-      weekRules = rulesList;
-      versionId = 'RULES_LIST';
-    }
-
-    const matchingRules = teacherSubjects.length > 0 
-      ? weekRules.filter(r => r.subject && teacherSubjects.includes(r.subject.trim().toLowerCase()))
-      : weekRules;
+    const matchingRules = ver.rules.filter(r => 
+      r.subject && teacherSubjects.includes(r.subject.trim().toLowerCase())
+    );
 
     matchingRules.forEach((rule, idx) => {
       const normSession = getNormalizedSession(rule);
       const normPeriod = getNormalizedPeriod(rule);
+      const ruleSubjectNorm = (rule.subject || '').trim().toLowerCase();
 
-      console.log('[GENERATE]', {
-        weekNumber: w,
-        versionId,
-        day: rule.dayOfWeek,
-        session: normSession,
-        period: normPeriod,
-        className: rule.className,
-        ruleSubject: rule.subject,
-        teacherSubjects,
-        source: versionId !== 'NONE' ? 'VERSION_RULE' : 'NONE'
-      });
-
-      const curr = PREDEFINED_PPCTS.find(p => p.grade === rule.grade && p.subject?.trim().toLowerCase() === rule.subject?.trim().toLowerCase());
+      const curr = PREDEFINED_PPCTS.find(p => p.grade === rule.grade && p.subject?.trim().toLowerCase() === ruleSubjectNorm);
       const ppctItem = curr?.items?.find(i => i.week === w) || {
         periodNumber: w,
         title: `Bài ${w}: Môn ${rule.subject} Lớp ${rule.className} (Tuần ${w})`,
@@ -123,7 +104,7 @@ function generateInitialSchedules(teacherProfile?: TeacherProfile, rulesList?: C
       };
 
       items.push({
-        id: `s-${rule.className.toLowerCase()}-${rule.subject.toLowerCase()}-p${normPeriod}-w${w}`,
+        id: `s-${rule.className.toLowerCase()}-${ruleSubjectNorm}-p${normPeriod}-w${w}`,
         teacherId: profile.uid,
         academicYear: year,
         semester: profile.semester || 'Học kỳ I',
@@ -176,13 +157,23 @@ export default function App() {
 
   const [schedules, setSchedules] = useState<ScheduleItem[]>(() => {
     const saved = localStorage.getItem('smart_schedule_items');
-    const items = saved ? JSON.parse(saved) : generateInitialSchedules();
-    return ensureUniqueScheduleIds(items);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return ensureUniqueScheduleIds(parsed);
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    return [];
   });
 
   // History stack for Undo/Redo
   const [history, setHistory] = useState<ScheduleItem[][]>([]);
   const [redoStack, setRedoStack] = useState<ScheduleItem[][]>([]);
+  const isHydratingRef = useRef<boolean>(true);
 
   const [curriculums, setCurriculums] = useState<PPCTCurriculum[]>(() => {
     const saved = localStorage.getItem('smart_schedule_ppcts');
@@ -276,6 +267,8 @@ export default function App() {
       if (user) {
         console.log(`[DATA LOAD] Auth ready: true, currentUser.uid: ${user.uid}`);
         setDataReady(false);
+        setAuthLoading(true);
+        isHydratingRef.current = true;
         setAutoSaveStatus('saving');
         try {
           // Sync user role and status in users/{uid} collection
@@ -285,7 +278,7 @@ export default function App() {
 
           // Fetch existing user data from Firestore
           const year = teacher.academicYear || '2026-2027';
-          const [fsTeacherData, fsVersions, fsPPCTs, fsSchedules, fsCustomDates, fsPrintSettings, fsConfig] = await Promise.all([
+          const [fsTeacherData, fsVersions, fsPPCTs, fsSchedulesResult, fsCustomDates, fsPrintSettings, fsConfig] = await Promise.all([
             fetchTeacherProfileFromFirestore(user.uid),
             fetchTimetableVersionsFromFirestore(user.uid),
             fetchPPCTsFromFirestore(user.uid),
@@ -297,76 +290,65 @@ export default function App() {
 
           if (isCancelled) return;
 
-          console.log(`[DATA LOAD] Firestore weeklySchedules: ${fsSchedules !== null ? `FOUND (${fsSchedules.length})` : 'NOT FOUND / NULL'}`);
+          console.log(`[DATA LOAD] fsSchedulesResult:`, fsSchedulesResult);
           console.log(`[DATA LOAD] TimetableVersions count: ${fsVersions ? fsVersions.length : 0}`);
 
           let activeTeacher: TeacherProfile = teacher;
           let activeRules: ClassTimetableRule[] = timetableRules;
           let activeVersions: TimetableVersion[] = timetableVersions;
 
-          const hasRemoteData = !!(
-            fsTeacherData.profile ||
-            (fsVersions && fsVersions.length > 0) ||
-            fsPPCTs ||
-            fsSchedules !== null ||
-            fsCustomDates ||
-            fsPrintSettings ||
-            fsConfig
-          );
+          // Load profile, config, rules, versions, ppcts
+          if (fsTeacherData.profile) {
+            activeTeacher = { ...fsTeacherData.profile, uid: user.uid };
+            setTeacher(activeTeacher);
+            localStorage.setItem('smart_schedule_teacher', JSON.stringify(activeTeacher));
+          }
+          if (fsConfig) {
+            setAcademicYearConfig(fsConfig);
+            localStorage.setItem('smart_schedule_academic_year_config', JSON.stringify(fsConfig));
+          }
+          if (fsTeacherData.rules && fsTeacherData.rules.length > 0) {
+            activeRules = fsTeacherData.rules;
+            setTimetableRules(activeRules);
+            localStorage.setItem('smart_schedule_rules', JSON.stringify(activeRules));
+          }
 
-          if (hasRemoteData) {
-            // Firestore has existing data for this teacher -> load remote state
-            if (fsTeacherData.profile) {
-              activeTeacher = { ...fsTeacherData.profile, uid: user.uid };
-              setTeacher(activeTeacher);
-              localStorage.setItem('smart_schedule_teacher', JSON.stringify(activeTeacher));
-            }
-            if (fsConfig) {
-              setAcademicYearConfig(fsConfig);
-              localStorage.setItem('smart_schedule_academic_year_config', JSON.stringify(fsConfig));
-            }
-            if (fsTeacherData.rules && fsTeacherData.rules.length > 0) {
-              activeRules = fsTeacherData.rules;
-              setTimetableRules(activeRules);
-              localStorage.setItem('smart_schedule_rules', JSON.stringify(activeRules));
-            }
+          // Sync Timetable Versions
+          if (fsVersions && fsVersions.length > 0) {
+            activeVersions = fsVersions;
+            setTimetableVersions(activeVersions);
+            localStorage.setItem('smart_schedule_timetable_versions', JSON.stringify(activeVersions));
+          } else if (activeRules && activeRules.length > 0) {
+            console.log('MIGRATION: Auto-creating initial timetableVersion from teachers/{uid}.rules');
+            const vYear = activeTeacher.academicYear || '2026-2027';
+            const migrated = await saveOrSplitTimetableVersionInFirestore(
+              user.uid,
+              vYear,
+              1,
+              activeRules,
+              'Thời khóa biểu ban đầu'
+            );
+            if (isCancelled) return;
+            activeVersions = migrated;
+            setTimetableVersions(migrated);
+            localStorage.setItem('smart_schedule_timetable_versions', JSON.stringify(migrated));
+          }
 
-            // Sync Timetable Versions
-            if (fsVersions && fsVersions.length > 0) {
-              activeVersions = fsVersions;
-              setTimetableVersions(activeVersions);
-              localStorage.setItem('smart_schedule_timetable_versions', JSON.stringify(activeVersions));
-            } else if (activeRules && activeRules.length > 0) {
-              console.log('MIGRATION: Auto-creating initial timetableVersion from teachers/{uid}.rules');
-              const vYear = activeTeacher.academicYear || '2025-2026';
-              const migrated = await saveOrSplitTimetableVersionInFirestore(
-                user.uid,
-                vYear,
-                1,
-                activeRules,
-                'Thời khóa biểu ban đầu'
-              );
-              if (isCancelled) return;
-              activeVersions = migrated;
-              setTimetableVersions(migrated);
-              localStorage.setItem('smart_schedule_timetable_versions', JSON.stringify(migrated));
-            }
+          if (fsPPCTs) {
+            setCurriculums(fsPPCTs);
+            localStorage.setItem('smart_schedule_ppcts', JSON.stringify(fsPPCTs));
+          }
 
-            if (fsPPCTs) {
-              setCurriculums(fsPPCTs);
-              localStorage.setItem('smart_schedule_ppcts', JSON.stringify(fsPPCTs));
-            }
-
-            // Load Weekly Schedules from Firestore (or LocalStorage fallback)
-            if (fsSchedules !== null && fsSchedules.length > 0) {
-              // Priority 1: Remote Firestore schedule items exist -> LOAD IT
-              const sanitized = ensureUniqueScheduleIds(fsSchedules);
+          // STRICT LOAD: WEEKLY SCHEDULES
+          if (fsSchedulesResult.status === 'success') {
+            if (fsSchedulesResult.exists) {
+              // Priority 1: Remote Firestore schedule items exist -> LOAD DIRECTLY
+              const sanitized = ensureUniqueScheduleIds(fsSchedulesResult.items);
               setSchedules(sanitized);
               localStorage.setItem('smart_schedule_items', JSON.stringify(sanitized));
               console.log(`[DATA LOAD] Loaded ${sanitized.length} items from Firestore weeklySchedules`);
             } else {
-              // Firestore has no weeklySchedules (or empty array / null).
-              // Check if localStorage has valid schedule items
+              // Priority 2: Document does not exist in Firestore. Check LocalStorage cache
               const savedLocal = localStorage.getItem('smart_schedule_items');
               let localItems: ScheduleItem[] = [];
               if (savedLocal) {
@@ -376,105 +358,58 @@ export default function App() {
                   localItems = [];
                 }
               }
-              console.log(`[DATA LOAD] LocalStorage schedules: ${localItems.length > 0 ? `FOUND (${localItems.length})` : 'EMPTY'}`);
 
               if (localItems && localItems.length > 0) {
-                // Priority 2: Use existing local schedules and sync to Firestore
                 const sanitized = ensureUniqueScheduleIds(localItems);
                 setSchedules(sanitized);
                 localStorage.setItem('smart_schedule_items', JSON.stringify(sanitized));
-                await saveSchedulesToFirestore(user.uid, sanitized);
-                console.log(`[DATA WRITE] Synced LocalStorage weeklySchedules to Firestore (${sanitized.length} items)`);
-              } else if (fsSchedules === null) {
-                // Priority 3: First time for this teacher without any schedules anywhere -> generate initial schedules ONCE
-                console.log('[DATA LOAD] generateInitialSchedules called because no schedules exist in Firestore or LocalStorage');
-                const initial = generateInitialSchedules(activeTeacher, activeRules, activeVersions);
-                const sanitized = ensureUniqueScheduleIds(initial);
-                setSchedules(sanitized);
-                localStorage.setItem('smart_schedule_items', JSON.stringify(sanitized));
-                if (sanitized.length > 0) {
-                  await saveSchedulesToFirestore(user.uid, sanitized);
-                  console.log(`[DATA WRITE] Saved initial weeklySchedules to Firestore (${sanitized.length} items)`);
-                } else {
-                  console.log('[DATA WRITE] Initial schedules generated 0 items. Skipping save to Firestore to protect data.');
-                }
+                console.log(`[DATA LOAD] Restored ${sanitized.length} items from LocalStorage cache`);
               } else {
-                // fsSchedules is [] and localItems is [] -> keep empty schedules without writing []
+                // Priority 3: No schedules exist anywhere. Set [] without writing
                 setSchedules([]);
                 localStorage.setItem('smart_schedule_items', JSON.stringify([]));
+                console.log('[DATA LOAD] Brand new or empty schedules state. Set schedules to []. No auto-write to Cloud.');
               }
             }
-
-            if (fsCustomDates) {
-              saveCustomWeekDatesMap(fsCustomDates);
-            }
-            if (fsPrintSettings) {
-              setPrintSettings(fsPrintSettings);
-              localStorage.setItem('smart_schedule_print_settings', JSON.stringify(fsPrintSettings));
-            }
           } else {
-            // First time login for this teacher on Cloud -> migrate local data to Firestore
-            const updatedProfile: TeacherProfile = {
-              ...teacher,
-              uid: user.uid,
-              fullName: user.displayName || teacher.fullName,
-              email: user.email || teacher.email,
-              avatarUrl: user.photoURL || teacher.avatarUrl,
-            };
-            setTeacher(updatedProfile);
-            localStorage.setItem('smart_schedule_teacher', JSON.stringify(updatedProfile));
-
-            const localCustomDates = loadCustomWeekDatesMap();
-
-            const year = updatedProfile.academicYear || '2025-2026';
-            const initialVersions = await saveOrSplitTimetableVersionInFirestore(
-              user.uid,
-              year,
-              1,
-              timetableRules,
-              'Thời khóa biểu ban đầu'
-            );
-            if (isCancelled) return;
-            setTimetableVersions(initialVersions);
-            localStorage.setItem('smart_schedule_timetable_versions', JSON.stringify(initialVersions));
-
-            let initialSchedules = schedules;
-            if (!initialSchedules || initialSchedules.length === 0) {
-              console.log('[GENERATE] generateInitialSchedules called for brand new account');
-              initialSchedules = generateInitialSchedules(updatedProfile, timetableRules, initialVersions);
-              setSchedules(initialSchedules);
-              localStorage.setItem('smart_schedule_items', JSON.stringify(initialSchedules));
+            console.warn('[DATA LOAD] Firestore schedules read error. Retaining local cache.');
+            const savedLocal = localStorage.getItem('smart_schedule_items');
+            if (savedLocal) {
+              try {
+                const localItems = JSON.parse(savedLocal);
+                if (Array.isArray(localItems) && localItems.length > 0) {
+                  setSchedules(ensureUniqueScheduleIds(localItems));
+                }
+              } catch (e) {
+                // ignore
+              }
             }
+          }
 
-            const savePromises: Promise<any>[] = [
-              saveTeacherProfileToFirestore(user.uid, updatedProfile, timetableRules),
-              savePPCTsToFirestore(user.uid, curriculums),
-              saveCustomWeekDatesToFirestore(user.uid, localCustomDates),
-              savePrintSettingsToFirestore(user.uid, printSettings),
-            ];
-            if (initialSchedules && initialSchedules.length > 0) {
-              savePromises.push(saveSchedulesToFirestore(user.uid, initialSchedules));
-              console.log(`[DATA WRITE] Initial sync saved ${initialSchedules.length} items to Firestore`);
-            } else {
-              console.log('[DATA WRITE] initialSchedules is empty. Skipping saveSchedulesToFirestore to protect cloud data.');
-            }
-            await Promise.all(savePromises);
+          if (fsCustomDates) {
+            saveCustomWeekDatesMap(fsCustomDates);
+          }
+          if (fsPrintSettings) {
+            setPrintSettings(fsPrintSettings);
+            localStorage.setItem('smart_schedule_print_settings', JSON.stringify(fsPrintSettings));
           }
 
           if (isCancelled) return;
-          console.log('[DATA LOAD] Data initialization completed. dataReady: true');
-          setDataReady(true);
+          console.log('[DATA LOAD] Data load phase completed successfully.');
         } catch (err) {
           console.error('Failed to sync Firestore data on login:', err);
         } finally {
           if (!isCancelled) {
-            setAutoSaveStatus('saved');
+            isHydratingRef.current = false;
+            setDataReady(true);
             setAuthLoading(false);
+            setAutoSaveStatus('saved');
           }
         }
       } else {
         if (!isCancelled) {
           setAppUser(null);
+          isHydratingRef.current = false;
           setDataReady(false);
           setAuthLoading(false);
         }
@@ -488,8 +423,8 @@ export default function App() {
 
   // Save schedules to LocalStorage & Firestore with Auto-save indicator
   const updateSchedulesWithHistory = (newSchedules: ScheduleItem[]) => {
-    if (!dataReady) {
-      console.warn('[DATA WRITE] Blocked updateSchedulesWithHistory: dataReady is false');
+    if (!dataReady || isHydratingRef.current) {
+      console.warn('[DATA WRITE] Blocked updateSchedulesWithHistory: dataReady is false or hydrating');
       return;
     }
     const sanitized = ensureUniqueScheduleIds(newSchedules);
@@ -499,7 +434,7 @@ export default function App() {
     setSchedules(sanitized);
     localStorage.setItem('smart_schedule_items', JSON.stringify(sanitized));
     const currentUid = authUser?.uid || auth.currentUser?.uid;
-    if (currentUid && dataReady) {
+    if (currentUid && dataReady && !isHydratingRef.current) {
       saveSchedulesToFirestore(currentUid, sanitized);
       console.log(`[SAVE] weeklySchedules count: ${sanitized.length}`);
     } else {
@@ -828,11 +763,12 @@ export default function App() {
         // Keep manual or user-edited items
         if (s.generatedFromTKB === false || s.source === 'manual') return true;
 
-        // Clean up auto-generated TKB items that are no longer in validSlots
+        // Clean up auto-generated TKB items that are no longer in validSlots or not in teacher.subjects
         if (s.generatedFromTKB === true || s.source === 'timetable') {
+          const sSubNorm = (s.subject || '').trim().toLowerCase();
+          if (teacherSubjects.length > 0 && !teacherSubjects.includes(sSubNorm)) return false;
           const sNormSession = getNormalizedSession(s);
           const sNormPeriod = getNormalizedPeriod(s);
-          const sSubNorm = (s.subject || '').trim().toLowerCase();
           const slotKey = `${s.className}_${s.dayOfWeek}_${sNormSession}_${sNormPeriod}_${sSubNorm}`;
           return validSlots.has(slotKey);
         }
