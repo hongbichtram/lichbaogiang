@@ -53,7 +53,7 @@ interface ScheduleViewProps {
   onUndo: () => void;
   onRedo: () => void;
   onNavigate?: (tab: string) => void;
-  onGenerateFromTKB?: (weekNumber?: number) => { createdCount: number; skippedCount: number; noVersionFound?: boolean };
+  onGenerateFromTKB?: (weekNumber?: number) => { createdCount: number; skippedCount: number; noVersionFound?: boolean; noMatchedRules?: boolean };
 }
 
 
@@ -118,12 +118,15 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
 
   const handleConfirmGenerateFromTKB = () => {
     setIsConfirmGenModalOpen(false);
+    console.log('[TKB-LBG][CLICK] Confirmed ⚡ Lập lịch TKB for week:', currentWeek);
     if (onGenerateFromTKB) {
       const res = onGenerateFromTKB(currentWeek);
       if (res.noVersionFound) {
-        showToast(`⚠️ Chưa có Thời khóa biểu áp dụng cho Tuần ${currentWeek}. Vui lòng tạo/cập nhật TKB cố định cho tuần này.`);
+        showToast(`⚠️ Tuần này chưa có phiên bản TKB được áp dụng.`);
+      } else if (res.noMatchedRules) {
+        showToast(`⚠️ Không có tiết dạy nào trong TKB khớp với phân công môn học của bạn ở Tuần ${currentWeek}.`);
       } else {
-        showToast(`✅ Đã tạo ${res.createdCount} tiết dạy từ TKB. (${res.skippedCount} tiết đã có giữ nguyên)`);
+        showToast(`✅ Đã tạo ${res.createdCount} tiết dạy từ TKB. (${res.skippedCount} tiết đã trùng khớp giữ nguyên)`);
       }
     } else {
       showToast('✅ Đã khởi tạo lịch báo giảng từ Thời khóa biểu tuần này.');
@@ -209,12 +212,15 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
           </button>
 
           <button
-            onClick={() => setIsConfirmGenModalOpen(true)}
+            onClick={() => {
+              console.log('[TKB-LBG][CLICK] Button "⚡ LẬP LỊCH TKB" clicked for week:', currentWeek);
+              setIsConfirmGenModalOpen(true);
+            }}
             className="flex items-center space-x-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold shadow-2xs transition-colors"
-            title="Tạo lịch báo giảng từ thời khóa biểu tuần này"
+            title="Lập lịch báo giảng từ thời khóa biểu tuần này"
           >
             <Sparkles className="w-4 h-4" />
-            <span>Tạo lịch từ TKB</span>
+            <span>⚡ LẬP LỊCH TKB</span>
           </button>
 
           <button
@@ -609,18 +615,18 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
             <div className="flex items-center space-x-3 text-purple-600 dark:text-purple-400">
               <Sparkles className="w-6 h-6 shrink-0" />
               <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                TẠO LỊCH BÁO GIẢNG TỪ TKB
+                ⚡ LẬP LỊCH TKB
               </h3>
             </div>
 
             <div className="space-y-2 text-xs text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
               <p className="font-bold text-slate-800 dark:text-slate-100">
-                Bạn có chắc chắn muốn tạo lịch báo giảng từ thời khóa biểu cho <strong className="text-purple-600 dark:text-purple-400">Tuần {currentWeek}</strong> không?
+                Bạn có chắc chắn muốn lập lịch báo giảng từ Thời khóa biểu áp dụng cho <strong className="text-purple-600 dark:text-purple-400">Tuần {currentWeek}</strong> không?
               </p>
               <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-500 dark:text-slate-400">
-                <li>Ứng dụng sẽ lấy Lớp, Môn và Tiết từ TKB cố định của bạn.</li>
-                <li>Tự động chọn bài dạy tương ứng từ PPCT.</li>
-                <li><strong>Không xóa hoặc ghi đè</strong> các bài PPCT bạn đã chỉnh sửa thủ công.</li>
+                <li>Hệ thống lấy đúng phiên bản TKB áp dụng cho <strong>Tuần {currentWeek}</strong>.</li>
+                <li>Chỉ sinh các tiết thuộc môn dạy trong phân công của giáo viên.</li>
+                <li><strong>Bảo toàn 100%</strong> các tiết học được thêm thủ công.</li>
               </ul>
             </div>
 
@@ -635,7 +641,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
                 onClick={handleConfirmGenerateFromTKB}
                 className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-black shadow-md shadow-purple-500/20 transition-all"
               >
-                Tạo lịch
+                ⚡ Lập lịch ngay
               </button>
             </div>
           </div>

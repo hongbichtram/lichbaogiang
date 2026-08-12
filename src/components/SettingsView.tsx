@@ -163,7 +163,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const handleAddCustomSubject = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const trimmed = addSubjectInput.trim();
-    if (!trimmed) return;
+    if (!trimmed) {
+      alert('Vui lòng nhập tên môn học cần thêm (ví dụ: Kỹ năng sống, Ngoại ngữ 2)!');
+      return;
+    }
 
     const before = [...currentSubjects];
     if (before.some(s => s.toLowerCase() === trimmed.toLowerCase())) {
@@ -182,6 +185,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setProfileForm(updatedProfile);
     onSaveProfile(updatedProfile);
     setAddSubjectInput('');
+    alert(`✅ Đã thêm môn "${trimmed}" vào danh sách phân công thành công!`);
   };
 
   const handleRemoveSubject = (subjectToRemove: string) => {
@@ -225,7 +229,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const handleAddClass = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const cleaned = normalizeClassName(addClassInput);
-    if (!cleaned) return;
+    if (!cleaned) {
+      alert('Vui lòng nhập mã/tên lớp mới (ví dụ: 3A1, 4A2)!');
+      return;
+    }
 
     const currentClasses = profileForm.assignedClasses || [];
     if (currentClasses.includes(cleaned)) {
@@ -238,6 +245,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setProfileForm(updatedProfile);
     onSaveProfile(updatedProfile);
     setAddClassInput('');
+    alert(`✅ Đã thêm lớp "${cleaned}" vào danh sách phân công thành công!`);
   };
 
   // Quick add class from dropdown callback

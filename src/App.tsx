@@ -41,7 +41,7 @@ import {
 } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
-import { loadCustomWeekDatesMap, saveCustomWeekDatesMap } from './utils/dateWeekUtils';
+import { loadCustomWeekDatesMap, saveCustomWeekDatesMap, normalizeAcademicYear } from './utils/dateWeekUtils';
 import { getTimetableVersionForWeek } from './utils/timetableUtils';
 import { getNormalizedSession, getNormalizedPeriod } from './utils/classUtils';
 
@@ -614,35 +614,58 @@ export default function App() {
 
   // Auto Generate Schedule from Timetable Rules + Curriculums with Versioning
   const handleGenerateFromTKB = (weekNumber?: number) => {
+    const targetWeek = weekNumber || currentWeek;
+    console.log('[TKB-LBG][CLICK] Executing handleGenerateFromTKB for week:', targetWeek);
+    console.log('[TKB-LBG][WEEK]', targetWeek);
+
     const year = normalizeAcademicYear(teacher.academicYear);
+    console.log('[TKB-LBG][ACADEMIC_YEAR]', year);
+
     const weeksToProcess = weekNumber ? [weekNumber] : Array.from({ length: 35 }, (_, i) => i + 1);
     let existing = [...schedules];
     let createdCount = 0;
     let skippedCount = 0;
+    let hasValidVersion = false;
+    let hasMatchedRules = false;
 
-    // Filter: Only create schedule items for subjects currently assigned to the teacher
     const teacherSubjects = (teacher.subjects || []).map(s => s.trim().toLowerCase());
 
     for (const w of weeksToProcess) {
-      let activeRules: ClassTimetableRule[] = [];
-      let verId = 'NONE';
-      let verFromWeek = 0;
-      let verToWeek = 0;
+      const ver = getTimetableVersionForWeek(timetableVersions, year, w);
 
-      if (timetableVersions && timetableVersions.length > 0) {
-        const ver = getTimetableVersionForWeek(timetableVersions, year, w);
-        if (ver && ver.rules) {
-          activeRules = ver.rules;
-          verId = ver.id;
-          verFromWeek = ver.fromWeek;
-          verToWeek = ver.toWeek;
-        }
+      if (!ver) {
+        console.log('[TKB-LBG][VERSION]', null);
+        console.log('[TKB-LBG][RULES]', 0);
+        console.log('[TKB-LBG][TEACHER_SUBJECTS]', teacherSubjects);
+        console.log('[TKB-LBG][MATCHED_RULES]', 0);
+        console.log('[TKB-LBG][GENERATED]', 0);
+        console.log('[TKB-LBG][SAVE]', 'SKIPPED_NO_VERSION');
+        continue;
       }
 
-      // Filter activeRules strictly by teacher.subjects. If teacher.subjects is empty, matchingRules MUST be []
+      hasValidVersion = true;
+
+      console.log('[TKB-LBG][VERSION]', {
+        id: ver.id,
+        versionName: ver.versionName,
+        fromWeek: ver.fromWeek,
+        toWeek: ver.toWeek,
+        academicYear: ver.academicYear
+      });
+
+      const sourceRules = Array.isArray(ver.rules) ? ver.rules : [];
+      console.log('[TKB-LBG][RULES]', sourceRules.length);
+      console.log('[TKB-LBG][TEACHER_SUBJECTS]', teacherSubjects);
+
       const matchingRules = teacherSubjects.length > 0
-        ? activeRules.filter(r => r.subject && teacherSubjects.includes(r.subject.trim().toLowerCase()))
+        ? sourceRules.filter(r => r.subject && teacherSubjects.includes(r.subject.trim().toLowerCase()))
         : [];
+
+      console.log('[TKB-LBG][MATCHED_RULES]', matchingRules.length);
+
+      if (matchingRules.length > 0) {
+        hasMatchedRules = true;
+      }
 
       const validSlots = new Set<string>();
       let weekCreated = 0;
@@ -657,7 +680,6 @@ export default function App() {
         const curr = curriculums.find(c => c.grade === rule.grade && c.subject?.trim().toLowerCase() === ruleSubjectNorm);
         const ppctItem = curr?.items.find(i => i.week === w) || curr?.items.find(i => i.periodNumber === w);
 
-        // Check if an item already exists for this slot in week w
         const existingIdx = existing.findIndex(s => 
           s.weekNumber === w &&
           s.dayOfWeek === rule.dayOfWeek &&
@@ -679,7 +701,6 @@ export default function App() {
             };
             skippedCount++;
           } else {
-            // TKB version changed subject for this slot -> Update existing item to new subject & PPCT
             existing[existingIdx] = {
               ...item,
               subject: rule.subject,
@@ -697,7 +718,6 @@ export default function App() {
             weekCreated++;
           }
         } else {
-          // Create new item for this slot
           const dayClean = (rule.dayOfWeek || 'day').replace(/\s+/g, '');
           const ruleIdPart = rule.id || `${rule.className}-${rule.subject}-${idx}`;
 
@@ -733,14 +753,12 @@ export default function App() {
 
       let weekRemoved = 0;
 
-      // Remove auto-generated TKB slots for week w that no longer exist in validSlots or not in teacher.subjects
+      // Clean up auto-generated TKB slots for week w that no longer exist in validSlots or not in teacher.subjects
       existing = existing.filter(s => {
         if (s.weekNumber !== w) return true;
 
-        // Keep manual items
         if (s.source === 'manual' || s.generatedFromTKB === false) return true;
 
-        // Check subject & validSlots
         const sSubNorm = (s.subject || '').trim().toLowerCase();
         if (!teacherSubjects.includes(sSubNorm)) {
           weekRemoved++;
@@ -757,22 +775,27 @@ export default function App() {
         return isValid;
       });
 
-      console.log('[TKB-LBG]', {
+      console.log('[TKB-LBG][GENERATED]', weekCreated);
+      console.log('[TKB-LBG][SAVE]', {
         weekNumber: w,
-        academicYear: year,
-        versionId: verId,
-        fromWeek: verFromWeek,
-        toWeek: verToWeek,
-        rulesCount: activeRules.length,
-        teacherSubjects,
-        matchedRules: matchingRules.length,
-        generatedSchedules: weekCreated,
-        removedSchedules: weekRemoved
+        created: weekCreated,
+        removed: weekRemoved,
+        totalItems: existing.length
       });
     }
 
+    if (!hasValidVersion) {
+      console.warn('[TKB-LBG] Generation skipped: No TimetableVersion found for target week');
+      return { createdCount: 0, skippedCount: 0, noVersionFound: true, noMatchedRules: false };
+    }
+
+    if (!hasMatchedRules) {
+      console.warn('[TKB-LBG] Generation skipped: No matching rules for teacher subjects');
+      return { createdCount: 0, skippedCount: 0, noVersionFound: false, noMatchedRules: true };
+    }
+
     updateSchedulesWithHistory(existing);
-    return { createdCount, skippedCount, noVersionFound: false };
+    return { createdCount, skippedCount, noVersionFound: false, noMatchedRules: false };
   };
 
   const handleAutoGenerateSchedule = () => {
