@@ -26,9 +26,9 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ currentUser }) =
     appName: 'Lịch báo giảng Tiểu học',
     schoolName: 'Trường Tiểu học',
     defaultAcademicYear: '2026-2027',
-    supportEmail: 'admin@truongtieuhoc.edu.vn',
-    supportPhone: '0901234567',
-    systemAnnouncement: 'Hệ thống Quản lý Lịch báo giảng Tiểu học vận hành chính thức.',
+    supportEmail: 'hongbichtram13@gmail.com',
+    supportPhone: '0973474027',
+    systemAnnouncement: 'Hệ thống Quản lý Lịch báo giảng Tiểu học.',
   });
 
   const [config, setConfig] = useState<SystemConfig>(initialConfig);
