@@ -10,16 +10,18 @@ import {
   User, 
   Calendar 
 } from 'lucide-react';
-import { ScheduleItem, TeacherProfile } from '../types';
+import { ScheduleItem, TeacherProfile, PrintSettings, DEFAULT_PRINT_SETTINGS } from '../types';
 import { exportWeeklyWordDoc, exportWeeklyExcel, buildLessonReportTableData, getWeekDayDate } from '../utils/exportUtils';
 
 interface ExportViewProps {
   teacher: TeacherProfile;
   schedules: ScheduleItem[];
   currentWeek: number;
+  printSettings?: PrintSettings;
 }
 
-export const ExportView: React.FC<ExportViewProps> = ({ teacher, schedules, currentWeek }) => {
+export const ExportView: React.FC<ExportViewProps> = ({ teacher, schedules, currentWeek, printSettings }) => {
+  const cfg = printSettings || DEFAULT_PRINT_SETTINGS;
   const [exportScope, setExportScope] = useState<'week' | 'month' | 'semester' | 'year'>('week');
   const [selectedWeek, setSelectedWeek] = useState(currentWeek);
 
@@ -36,7 +38,7 @@ export const ExportView: React.FC<ExportViewProps> = ({ teacher, schedules, curr
   const fridayDate = getWeekDayDate(selectedWeek, 'Thứ 6', teacher.academicYear);
 
   const handleExportWord = () => {
-    exportWeeklyWordDoc(exportSchedules, teacher, selectedWeek);
+    exportWeeklyWordDoc(exportSchedules, teacher, selectedWeek, cfg);
   };
 
   const handleExportExcel = () => {
@@ -230,16 +232,35 @@ export const ExportView: React.FC<ExportViewProps> = ({ teacher, schedules, curr
 
         {/* Printable Signatures Block */}
         <div className="pt-8 flex justify-between text-[11pt] text-center font-semibold">
-          <div className="space-y-1">
-            <p className="font-bold">BAN GIÁM HIỆU DUYỆT</p>
-            <p className="text-[10pt] text-slate-500 italic font-normal">(Ký và ghi rõ họ tên)</p>
-          </div>
-          <div className="space-y-1">
-            <p className="italic text-[10pt] text-slate-600 font-normal">..., ngày ..... tháng ..... năm 2026</p>
-            <p className="font-bold">GIÁO VIÊN BÁO GIẢNG</p>
-            <p className="text-[10pt] text-slate-500 italic font-normal">(Ký và ghi rõ họ tên)</p>
-            <div className="pt-14 font-bold text-[11pt] text-slate-900">{teacher.fullName}</div>
-          </div>
+          {cfg.showSigBoard && (
+            <div className="space-y-1">
+              <p className="font-bold uppercase">{cfg.sigBoardTitle || 'BAN GIÁM HIỆU DUYỆT'}</p>
+              <p className="text-[10pt] text-slate-500 italic font-normal">(Ký và ghi rõ họ tên)</p>
+            </div>
+          )}
+
+          {cfg.showSigDepartmentHead && (
+            <div className="space-y-1">
+              <p className="font-bold uppercase">{cfg.sigDepartmentHeadTitle || 'TỔ TRƯỞNG CHUYÊN MÔN'}</p>
+              <p className="text-[10pt] text-slate-500 italic font-normal">(Ký tên)</p>
+            </div>
+          )}
+
+          {cfg.showSigTeacher && (
+            <div className="space-y-1">
+              <p className="italic text-[10pt] text-slate-600 font-normal">..., ngày ..... tháng ..... năm 2026</p>
+              <p className="font-bold uppercase">{cfg.sigTeacherTitle || 'GIÁO VIÊN BÁO GIẢNG'}</p>
+              <p className="text-[10pt] text-slate-500 italic font-normal">(Ký và ghi rõ họ tên)</p>
+              <div className="pt-14 font-bold text-[11pt] text-slate-900">{cfg.teacherName || teacher.fullName}</div>
+            </div>
+          )}
+
+          {cfg.showSigCreator && (
+            <div className="space-y-1">
+              <p className="font-bold uppercase">{cfg.sigCreatorTitle || 'NGƯỜI LẬP'}</p>
+              <p className="text-[10pt] text-slate-500 italic font-normal">(Ký tên)</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

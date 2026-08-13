@@ -40,7 +40,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
   const tableData = buildLessonReportTableData(weekSchedules, currentWeek, teacher.academicYear);
 
   const handleExportWord = () => {
-    exportWeeklyWordDoc(weekSchedules, teacher, currentWeek);
+    exportWeeklyWordDoc(weekSchedules, teacher, currentWeek, cfg);
   };
 
   const handleExportExcel = () => {

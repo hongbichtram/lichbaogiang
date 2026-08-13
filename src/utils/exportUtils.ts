@@ -1,6 +1,6 @@
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, AlignmentType, WidthType, BorderStyle, VerticalMergeType, VerticalAlign } from 'docx';
 import * as XLSX from 'xlsx';
-import { ScheduleItem, TeacherProfile } from '../types';
+import { ScheduleItem, TeacherProfile, PrintSettings, DEFAULT_PRINT_SETTINGS } from '../types';
 import { getNormalizedSession, getNormalizedPeriod, formatLessonDisplayTitle } from './classUtils';
 import { getActualDayDate } from './dateWeekUtils';
 
@@ -207,7 +207,8 @@ export const buildLessonReportTableData = (
 export const exportWeeklyWordDoc = async (
   schedules: ScheduleItem[],
   teacher: TeacherProfile,
-  weekNumber: number
+  weekNumber: number,
+  printSettings: PrintSettings = DEFAULT_PRINT_SETTINGS
 ) => {
   const tableData = buildLessonReportTableData(schedules, weekNumber, teacher.academicYear);
   const mondayDate = getWeekDayDate(weekNumber, 'Thứ 2', teacher.academicYear);
@@ -279,7 +280,12 @@ export const exportWeeklyWordDoc = async (
         new TableCell({
           width: { size: 8, type: WidthType.PERCENTAGE },
           verticalAlign: VerticalAlign.CENTER,
-          children: [new Paragraph({ text: row.className, alignment: AlignmentType.CENTER, children: [new TextRun({ text: row.className, bold: true })] })],
+          children: [
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              children: [new TextRun({ text: row.className, bold: true })],
+            }),
+          ],
         }),
         new TableCell({
           width: { size: 48, type: WidthType.PERCENTAGE },
@@ -295,77 +301,187 @@ export const exportWeeklyWordDoc = async (
     });
   });
 
-  const doc = new Document({
-    sections: [
-      {
-        properties: {},
+  // Calculate signature columns based on printSettings (matching "Xem & In" signature options)
+  const activeSigCount = [
+    printSettings.showSigBoard,
+    printSettings.showSigDepartmentHead,
+    printSettings.showSigTeacher,
+    printSettings.showSigCreator,
+  ].filter(Boolean).length;
+
+  const colPercent = activeSigCount > 0 ? Math.floor(100 / activeSigCount) : 100;
+  const sigCells: TableCell[] = [];
+
+  if (printSettings.showSigBoard) {
+    sigCells.push(
+      new TableCell({
+        width: { size: colPercent, type: WidthType.PERCENTAGE },
         children: [
           new Paragraph({
-            alignment: AlignmentType.LEFT,
+            alignment: AlignmentType.CENTER,
             children: [
-              new TextRun({ text: `Trường: ${teacher.schoolName || 'Tiểu học'}\n`, bold: true, size: 22 }),
-              new TextRun({ text: `Giáo viên: ${teacher.fullName || 'Chưa cập nhật'} ${teacher.teacherCode ? `- Mã GV: ${teacher.teacherCode}` : ''}\n`, size: 22 }),
-              new TextRun({ text: `Năm học: ${teacher.academicYear} - ${teacher.semester}\n\n`, size: 22 }),
+              new TextRun({
+                text: (printSettings.sigBoardTitle || 'BAN GIÁM HIỆU DUYỆT').toUpperCase(),
+                bold: true,
+                size: 20,
+              }),
+            ],
+          }),
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [new TextRun({ text: '(Ký và ghi rõ họ tên)', italics: true, size: 18 })],
+          }),
+        ],
+      })
+    );
+  }
+
+  if (printSettings.showSigDepartmentHead) {
+    sigCells.push(
+      new TableCell({
+        width: { size: colPercent, type: WidthType.PERCENTAGE },
+        children: [
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [
+              new TextRun({
+                text: (printSettings.sigDepartmentHeadTitle || 'TỔ TRƯỞNG CHUYÊN MÔN').toUpperCase(),
+                bold: true,
+                size: 20,
+              }),
+            ],
+          }),
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [new TextRun({ text: '(Ký tên)', italics: true, size: 18 })],
+          }),
+        ],
+      })
+    );
+  }
+
+  if (printSettings.showSigTeacher) {
+    sigCells.push(
+      new TableCell({
+        width: { size: colPercent, type: WidthType.PERCENTAGE },
+        children: [
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [
+              new TextRun({
+                text: '..., ngày ..... tháng ..... năm 2026',
+                italics: true,
+                size: 18,
+              }),
             ],
           }),
           new Paragraph({
             alignment: AlignmentType.CENTER,
             children: [
-              new TextRun({ text: `LỊCH BÁO GIẢNG TUẦN ${weekNumber}`, bold: true, size: 28, color: '1E3A8A' }),
+              new TextRun({
+                text: (printSettings.sigTeacherTitle || 'GIÁO VIÊN BÁO GIẢNG').toUpperCase(),
+                bold: true,
+                size: 20,
+              }),
             ],
           }),
           new Paragraph({
             alignment: AlignmentType.CENTER,
-            children: [
-              new TextRun({ text: `(Từ ngày ${mondayDate} đến ngày ${fridayDate})`, italics: true, size: 20 }),
-            ],
+            children: [new TextRun({ text: '(Ký và ghi rõ họ tên)', italics: true, size: 18 })],
           }),
-          new Paragraph({ text: '\n' }),
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: [tableHeaderRow, ...tableDataRows],
-          }),
-          new Paragraph({ text: '\n\n' }),
+          new Paragraph({ text: '\n\n\n' }),
           new Paragraph({
-            alignment: AlignmentType.RIGHT,
+            alignment: AlignmentType.CENTER,
             children: [
-              new TextRun({ text: `..., ngày ..... tháng ..... năm 2026\n`, italics: true, size: 20 }),
-            ],
-          }),
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            borders: {
-              top: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
-              bottom: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
-              left: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
-              right: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
-              insideHorizontal: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
-              insideVertical: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
-            },
-            rows: [
-              new TableRow({
-                children: [
-                  new TableCell({
-                    width: { size: 50, type: WidthType.PERCENTAGE },
-                    children: [
-                      new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'BAN GIÁM HIỆU DUYỆT', bold: true })] }),
-                      new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '(Ký và ghi rõ họ tên)', italics: true })] }),
-                    ],
-                  }),
-                  new TableCell({
-                    width: { size: 50, type: WidthType.PERCENTAGE },
-                    children: [
-                      new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'GIÁO VIÊN BÁO GIẢNG', bold: true })] }),
-                      new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '(Ký và ghi rõ họ tên)', italics: true })] }),
-                      new Paragraph({ text: '\n\n\n' }),
-                      new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: teacher.fullName, bold: true })] }),
-                    ],
-                  }),
-                ],
+              new TextRun({
+                text: printSettings.teacherName || teacher.fullName,
+                bold: true,
+                size: 20,
               }),
             ],
           }),
         ],
+      })
+    );
+  }
+
+  if (printSettings.showSigCreator) {
+    sigCells.push(
+      new TableCell({
+        width: { size: colPercent, type: WidthType.PERCENTAGE },
+        children: [
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [
+              new TextRun({
+                text: (printSettings.sigCreatorTitle || 'NGƯỜI LẬP').toUpperCase(),
+                bold: true,
+                size: 20,
+              }),
+            ],
+          }),
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [new TextRun({ text: '(Ký tên)', italics: true, size: 18 })],
+          }),
+        ],
+      })
+    );
+  }
+
+  const titleText = (printSettings.customTitle || 'LỊCH BÁO GIẢNG TUẦN {week}')
+    .replace('{week}', String(weekNumber))
+    .replace('{school}', printSettings.schoolName || teacher.schoolName || '')
+    .replace('{teacher}', printSettings.teacherName || teacher.fullName || '')
+    .toUpperCase();
+
+  const docChildren: any[] = [
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      children: [
+        new TextRun({ text: titleText, bold: true, size: 28, color: '1E3A8A' }),
+      ],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      children: [
+        new TextRun({ text: `(Từ ngày ${mondayDate} đến ngày ${fridayDate})`, italics: true, size: 20 }),
+      ],
+    }),
+    new Paragraph({ text: '\n' }),
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [tableHeaderRow, ...tableDataRows],
+    }),
+  ];
+
+  if (sigCells.length > 0) {
+    docChildren.push(
+      new Paragraph({ text: '\n\n' }),
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        borders: {
+          top: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+          bottom: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+          left: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+          right: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+          insideHorizontal: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+          insideVertical: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+        },
+        rows: [
+          new TableRow({
+            children: sigCells,
+          }),
+        ],
+      })
+    );
+  }
+
+  const doc = new Document({
+    sections: [
+      {
+        properties: {},
+        children: docChildren,
       },
     ],
   });
