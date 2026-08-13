@@ -82,17 +82,17 @@ export const Navbar: React.FC<NavbarProps> = ({
           
           {/* Brand Logo Left */}
           <div 
-            className="flex items-center space-x-3 cursor-pointer group" 
+            className="flex items-center space-x-3 cursor-pointer group shrink-0" 
             onClick={() => setCurrentTab('dashboard')}
           >
-            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30 border border-blue-400/30 group-hover:scale-105 transition-transform duration-200">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30 border border-blue-400/30 group-hover:scale-105 transition-transform duration-200 shrink-0">
               <Calendar className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
             <div>
-              <span className="font-black text-base sm:text-lg tracking-wider block leading-tight uppercase bg-gradient-to-r from-white via-slate-100 to-blue-200 bg-clip-text text-transparent">
+              <span className="font-black text-xs sm:text-sm md:text-base tracking-wide block leading-tight uppercase whitespace-nowrap overflow-visible bg-gradient-to-r from-white via-slate-100 to-blue-200 bg-clip-text text-transparent">
                 LỊCH BÁO GIẢNG
               </span>
-              <span className="text-[11px] sm:text-xs text-indigo-300/80 font-semibold tracking-wide block">
+              <span className="text-[10px] sm:text-[11px] text-indigo-300/80 font-semibold tracking-wide block whitespace-nowrap">
                 {teacher.schoolName || 'Trường Tiểu học'}
               </span>
             </div>

@@ -1,8 +1,26 @@
 import React from 'react';
 import { X, Printer, FileText, FileSpreadsheet, Download } from 'lucide-react';
 import { ScheduleItem, TeacherProfile, PrintSettings, DEFAULT_PRINT_SETTINGS } from '../types';
-import { exportWeeklyWordDoc, exportWeeklyExcel, groupSchedulesByDay } from '../utils/exportUtils';
-import { formatTableSessionPeriod, formatLessonDisplayTitle } from '../utils/classUtils';
+import { exportWeeklyWordDoc, exportWeeklyExcel, groupSchedulesByDay, getWeekDayDate } from '../utils/exportUtils';
+import { formatLessonDisplayTitle, getNormalizedSession, getNormalizedPeriod } from '../utils/classUtils';
+
+const FIXED_DAYS = [
+  { key: 'Thứ 2', displayName: 'Thứ Hai' },
+  { key: 'Thứ 3', displayName: 'Thứ Ba' },
+  { key: 'Thứ 4', displayName: 'Thứ Tư' },
+  { key: 'Thứ 5', displayName: 'Thứ Năm' },
+  { key: 'Thứ 6', displayName: 'Thứ Sáu' },
+] as const;
+
+const FIXED_ROW_CONFIGS = [
+  { session: 'Sáng', period: 1, label: 'Tiết 1', isFirstInSession: true, sessionRowSpan: 4 },
+  { session: 'Sáng', period: 2, label: 'Tiết 2', isFirstInSession: false, sessionRowSpan: 0 },
+  { session: 'Sáng', period: 3, label: 'Tiết 3', isFirstInSession: false, sessionRowSpan: 0 },
+  { session: 'Sáng', period: 4, label: 'Tiết 4', isFirstInSession: false, sessionRowSpan: 0 },
+  { session: 'Chiều', period: 1, label: 'Tiết 1', isFirstInSession: true, sessionRowSpan: 3 },
+  { session: 'Chiều', period: 2, label: 'Tiết 2', isFirstInSession: false, sessionRowSpan: 0 },
+  { session: 'Chiều', period: 3, label: 'Tiết 3', isFirstInSession: false, sessionRowSpan: 0 },
+] as const;
 
 interface PrintPreviewModalProps {
   isOpen: boolean;
@@ -213,72 +231,107 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
               >
                 <thead>
                   <tr className="bg-slate-100 text-slate-900 font-bold border-b border-slate-400">
-                    {cfg.showColDay && <th className="border border-slate-400 p-2.5 text-center align-middle">Thứ, ngày tháng năm</th>}
-                    {cfg.showColPeriod && <th className="border border-slate-400 p-2.5 text-center align-middle">Tiết</th>}
-                    {cfg.showColSession && <th className="border border-slate-400 p-2.5 text-center align-middle">Buổi</th>}
-                    {cfg.showColClass && <th className="border border-slate-400 p-2.5 text-center align-middle">Lớp</th>}
-                    {cfg.showColPpctPeriod && <th className="border border-slate-400 p-2.5 text-center align-middle">Tiết PPCT</th>}
-                    {cfg.showColLessonTitle && <th className="border border-slate-400 p-2.5 text-center align-middle">Tên bài dạy</th>}
-                    {cfg.showColNotes && <th className="border border-slate-400 p-2.5 text-center align-middle">Ghi chú</th>}
+                    {cfg.showColDay && <th className="border border-slate-400 p-2 text-center align-middle whitespace-nowrap">Thứ, ngày tháng năm</th>}
+                    {cfg.showColSession && <th className="border border-slate-400 p-2 text-center align-middle whitespace-nowrap w-16">Buổi</th>}
+                    {cfg.showColPeriod && <th className="border border-slate-400 p-2 text-center align-middle whitespace-nowrap w-16">Tiết</th>}
+                    {cfg.showColClass && <th className="border border-slate-400 p-2 text-center align-middle whitespace-nowrap w-20">Lớp</th>}
+                    {cfg.showColPpctPeriod && <th className="border border-slate-400 p-2 text-center align-middle whitespace-nowrap w-20">Tiết PPCT</th>}
+                    {cfg.showColLessonTitle && <th className="border border-slate-400 p-2 text-center align-middle">Tên bài dạy</th>}
+                    {cfg.showColNotes && <th className="border border-slate-400 p-2 text-center align-middle w-28">Ghi chú</th>}
                   </tr>
                 </thead>
                 <tbody>
-                  {dayGroups.length === 0 ? (
-                    <tr>
-                      <td colSpan={visibleColsCount} className="text-center p-6 text-slate-400 italic align-middle">
-                        Chưa có lịch báo giảng trong tuần này.
-                      </td>
-                    </tr>
-                  ) : (
-                    dayGroups.map((group) =>
-                      group.items.map((item, itemIdx) => (
-                        <tr key={item.id} className="border-b border-slate-300 min-h-[38px]">
-                          {cfg.showColDay && itemIdx === 0 && (
+                  {FIXED_DAYS.map((day) => {
+                    const dayScheduleItems = weekSchedules.filter((s) => s.dayOfWeek === day.key);
+                    const dateStr =
+                      dayScheduleItems.find((s) => !!s.date)?.date ||
+                      getWeekDayDate(currentWeek, day.key, teacher.academicYear);
+
+                    return FIXED_ROW_CONFIGS.map((rowCfg, rowIdx) => {
+                      const isFirstInDay = rowIdx === 0;
+                      const matchingItem = dayScheduleItems.find(
+                        (s) =>
+                          getNormalizedSession(s) === rowCfg.session &&
+                          getNormalizedPeriod(s) === rowCfg.period
+                      );
+
+                      return (
+                        <tr
+                          key={`${day.key}-${rowCfg.session}-${rowCfg.period}`}
+                          className="border-b border-slate-400 min-h-[32px]"
+                        >
+                          {/* Cột 1: Thứ, ngày tháng năm (RowSpan = 7) */}
+                          {cfg.showColDay && isFirstInDay && (
                             <td
-                              rowSpan={group.items.length}
-                              className="border border-slate-400 px-2.5 py-2 text-center align-middle bg-white font-bold"
+                              rowSpan={7}
+                              className="border border-slate-400 px-2 py-2 text-center align-middle bg-white font-bold text-slate-900"
                             >
-                              <div>{group.dayDisplayName}</div>
-                              <div className="text-[10pt] font-normal text-slate-600 mt-0.5">{group.dateStr}</div>
+                              <div className="font-bold text-slate-900">{day.displayName}</div>
+                              {dateStr && (
+                                <div className="text-[9.5pt] font-normal text-slate-600 mt-0.5">
+                                  {dateStr}
+                                </div>
+                              )}
                             </td>
                           )}
+
+                          {/* Cột 2: Buổi (Sáng rowSpan=4, Chiều rowSpan=3) */}
+                          {cfg.showColSession && rowCfg.isFirstInSession && (
+                            <td
+                              rowSpan={rowCfg.sessionRowSpan}
+                              className="border border-slate-400 px-2 py-2 text-center align-middle bg-white font-bold text-slate-900 whitespace-nowrap"
+                            >
+                              {rowCfg.session}
+                            </td>
+                          )}
+
+                          {/* Cột 3: Tiết */}
                           {cfg.showColPeriod && (
-                            <td className="border border-slate-400 px-2 py-2 text-center align-middle">
-                              {formatTableSessionPeriod(item.period, item.session)}
+                            <td className="border border-slate-400 px-2 py-1.5 text-center align-middle font-medium text-slate-800 whitespace-nowrap">
+                              {rowCfg.label}
                             </td>
                           )}
-                          {cfg.showColSession && (
-                            <td className="border border-slate-400 px-2 py-2 text-center align-middle">
-                              {item.session || (item.period <= 5 ? 'Sáng' : 'Chiều')}
-                            </td>
-                          )}
+
+                          {/* Cột 4: Lớp */}
                           {cfg.showColClass && (
-                            <td className="border border-slate-400 px-2 py-2 text-center align-middle font-bold">
-                              {item.className}
+                            <td className="border border-slate-400 px-2 py-1.5 text-center align-middle font-bold text-slate-900 whitespace-nowrap">
+                              {matchingItem?.className || ''}
                             </td>
                           )}
+
+                          {/* Cột Tiết PPCT (optional) */}
                           {cfg.showColPpctPeriod && (
-                            <td className="border border-slate-400 px-2 py-2 text-center align-middle">
-                              {item.ppctPeriod || '-'}
+                            <td className="border border-slate-400 px-2 py-1.5 text-center align-middle text-slate-800 whitespace-nowrap">
+                              {matchingItem?.ppctPeriod || ''}
                             </td>
                           )}
+
+                          {/* Cột 5: Tên bài dạy */}
                           {cfg.showColLessonTitle && (
                             <td
                               style={{ fontWeight: cfg.isLessonTitleBold ? 'bold' : 'normal' }}
-                              className="border border-slate-400 px-2.5 py-2 align-middle text-left"
+                              className="border border-slate-400 px-2.5 py-1.5 align-middle text-left text-slate-900"
                             >
-                              {formatLessonDisplayTitle(item.lessonTitle, item.subject, 'Chưa cập nhật')}
+                              {matchingItem
+                                ? formatLessonDisplayTitle(
+                                    matchingItem.lessonTitle,
+                                    matchingItem.subject,
+                                    ''
+                                  )
+                                : ''}
                             </td>
                           )}
+
+                          {/* Cột 6: Ghi chú */}
                           {cfg.showColNotes && (
-                            <td className="border border-slate-400 px-2.5 py-2 align-middle text-slate-700 text-left">
-                              {item.notes || ''}
+                            <td className="border border-slate-400 px-2.5 py-1.5 align-middle text-left text-slate-700">
+                              {matchingItem?.notes || ''}
                             </td>
                           )}
                         </tr>
-                      ))
-                    )
-                  )}
+                      );
+                    });
+                  })}
                 </tbody>
               </table>
             </div>
