@@ -151,7 +151,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
   // Filter schedules for current week
   const filteredSchedules = useMemo(() => {
     return schedules.filter(item => {
-      if (item.weekNumber !== currentWeek) return false;
+      if (Number(item.weekNumber) !== Number(currentWeek)) return false;
       if (teacherSubjectNorms.length > 0) {
         const itemSub = (item.subject || '').trim().toLowerCase();
         if (itemSub && !teacherSubjectNorms.includes(itemSub)) return false;
@@ -170,6 +170,14 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
       return true;
     });
   }, [schedules, currentWeek, filter, teacherSubjectNorms]);
+
+  console.log('[LBG-RENDER]', {
+    schedulesCount: schedules?.length,
+    currentWeek,
+    academicYear: teacher?.academicYear,
+    teacherUid: teacher?.uid,
+    filteredCount: filteredSchedules?.length
+  });
 
   // Available options for dropdowns
   const availableClasses = Array.from(new Set(schedules.map(s => s.className))).filter(Boolean);

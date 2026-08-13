@@ -634,10 +634,16 @@ export const fetchSchedulesFromFirestore = async (uid: string): Promise<FetchSch
     const ref = doc(db, 'weeklySchedules', uid);
     const snap = await getDoc(ref);
     const exists = snap.exists();
+    const data = exists ? snap.data() : null;
+    console.log('[FIRESTORE-SCHEDULE-READ]', {
+      uid,
+      exists,
+      count: data?.items?.length || 0,
+      data
+    });
     console.log('FIRESTORE LOAD SUCCESS', { collection: 'weeklySchedules', uid, dataFound: exists });
     if (exists) {
-      const data = snap.data();
-      return { status: 'success', exists: true, items: data.items || [] };
+      return { status: 'success', exists: true, items: data?.items || [] };
     } else {
       return { status: 'success', exists: false, items: [] };
     }

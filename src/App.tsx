@@ -119,6 +119,7 @@ export default function App() {
   const [history, setHistory] = useState<ScheduleItem[][]>([]);
   const [redoStack, setRedoStack] = useState<ScheduleItem[][]>([]);
   const isHydratingRef = useRef<boolean>(true);
+  const dataReadyRef = useRef<boolean>(false);
 
   const [curriculums, setCurriculums] = useState<PPCTCurriculum[]>(() => {
     const saved = localStorage.getItem('smart_schedule_ppcts');
@@ -210,10 +211,11 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setAuthUser(user);
       if (user) {
-        console.log(`[DATA LOAD] Auth ready: true, currentUser.uid: ${user.uid}`);
+        console.log('[HYDRATION] START', { uid: user.uid });
+        isHydratingRef.current = true;
+        dataReadyRef.current = false;
         setDataReady(false);
         setAuthLoading(true);
-        isHydratingRef.current = true;
         setAutoSaveStatus('saving');
         try {
           // Sync user role and status in users/{uid} collection
@@ -235,7 +237,7 @@ export default function App() {
 
           if (isCancelled) return;
 
-          console.log(`[DATA LOAD] fsSchedulesResult:`, fsSchedulesResult);
+          console.log('[HYDRATION] FIRESTORE SCHEDULES LOADED', fsSchedulesResult);
           console.log(`[DATA LOAD] TimetableVersions count: ${fsVersions ? fsVersions.length : 0}`);
 
           let activeTeacher: TeacherProfile = teacher;
@@ -285,20 +287,57 @@ export default function App() {
           }
 
           // STRICT LOAD: WEEKLY SCHEDULES
+          let finalCount = 0;
           if (fsSchedulesResult.status === 'success') {
             if (fsSchedulesResult.exists) {
-              // Priority 1: Remote Firestore schedule items exist -> LOAD DIRECTLY
-              const sanitized = ensureUniqueScheduleIds(fsSchedulesResult.items);
-              setSchedules(sanitized);
-              localStorage.setItem('smart_schedule_items', JSON.stringify(sanitized));
-              console.log(`[DATA LOAD] Loaded ${sanitized.length} items from Firestore weeklySchedules`);
+              const fsItems = fsSchedulesResult.items || [];
+              if (fsItems.length > 0) {
+                // Priority 1: Remote Firestore schedule items exist -> LOAD DIRECTLY
+                const sanitized = ensureUniqueScheduleIds(fsItems);
+                console.log('[SCHEDULE-STATE-BEFORE]', schedules);
+                console.log('[SCHEDULE-STATE-SET]', sanitized);
+                setSchedules(sanitized);
+                localStorage.setItem('smart_schedule_items', JSON.stringify(sanitized));
+                finalCount = sanitized.length;
+                console.log(`[DATA LOAD] Loaded ${sanitized.length} items from Firestore weeklySchedules`);
+              } else {
+                // SUCCESS_EMPTY: Firestore document exists but items array is empty.
+                // Check if local cache has items as fallback before setting []
+                const savedLocal = localStorage.getItem('smart_schedule_items');
+                let localItems: ScheduleItem[] = [];
+                if (savedLocal) {
+                  try {
+                    const parsed = JSON.parse(savedLocal);
+                    if (Array.isArray(parsed)) localItems = parsed;
+                  } catch (e) {
+                    localItems = [];
+                  }
+                }
+                if (localItems && localItems.length > 0) {
+                  const sanitized = ensureUniqueScheduleIds(localItems);
+                  console.log('[SCHEDULE-STATE-BEFORE]', schedules);
+                  console.log('[SCHEDULE-STATE-SET]', sanitized);
+                  setSchedules(sanitized);
+                  localStorage.setItem('smart_schedule_items', JSON.stringify(sanitized));
+                  finalCount = sanitized.length;
+                  console.log(`[DATA LOAD] Firestore items empty, restored ${sanitized.length} items from LocalStorage cache`);
+                } else {
+                  console.log('[SCHEDULE-STATE-BEFORE]', schedules);
+                  console.log('[SCHEDULE-STATE-SET]', []);
+                  setSchedules([]);
+                  localStorage.setItem('smart_schedule_items', JSON.stringify([]));
+                  finalCount = 0;
+                  console.log('[DATA LOAD] Account has empty schedules. Set schedules to [].');
+                }
+              }
             } else {
               // Priority 2: Document does not exist in Firestore. Check LocalStorage cache
               const savedLocal = localStorage.getItem('smart_schedule_items');
               let localItems: ScheduleItem[] = [];
               if (savedLocal) {
                 try {
-                  localItems = JSON.parse(savedLocal);
+                  const parsed = JSON.parse(savedLocal);
+                  if (Array.isArray(parsed)) localItems = parsed;
                 } catch (e) {
                   localItems = [];
                 }
@@ -306,13 +345,19 @@ export default function App() {
 
               if (localItems && localItems.length > 0) {
                 const sanitized = ensureUniqueScheduleIds(localItems);
+                console.log('[SCHEDULE-STATE-BEFORE]', schedules);
+                console.log('[SCHEDULE-STATE-SET]', sanitized);
                 setSchedules(sanitized);
                 localStorage.setItem('smart_schedule_items', JSON.stringify(sanitized));
+                finalCount = sanitized.length;
                 console.log(`[DATA LOAD] Restored ${sanitized.length} items from LocalStorage cache`);
               } else {
                 // Priority 3: No schedules exist anywhere. Set [] without writing
+                console.log('[SCHEDULE-STATE-BEFORE]', schedules);
+                console.log('[SCHEDULE-STATE-SET]', []);
                 setSchedules([]);
                 localStorage.setItem('smart_schedule_items', JSON.stringify([]));
+                finalCount = 0;
                 console.log('[DATA LOAD] Brand new or empty schedules state. Set schedules to []. No auto-write to Cloud.');
               }
             }
@@ -323,13 +368,19 @@ export default function App() {
               try {
                 const localItems = JSON.parse(savedLocal);
                 if (Array.isArray(localItems) && localItems.length > 0) {
-                  setSchedules(ensureUniqueScheduleIds(localItems));
+                  const sanitized = ensureUniqueScheduleIds(localItems);
+                  console.log('[SCHEDULE-STATE-BEFORE]', schedules);
+                  console.log('[SCHEDULE-STATE-SET]', sanitized);
+                  setSchedules(sanitized);
+                  finalCount = sanitized.length;
                 }
               } catch (e) {
                 // ignore
               }
             }
           }
+
+          console.log('[HYDRATION] STATE HYDRATED', { scheduleCount: finalCount });
 
           if (fsCustomDates) {
             saveCustomWeekDatesMap(fsCustomDates);
@@ -340,35 +391,23 @@ export default function App() {
           }
 
           if (isCancelled) return;
-          const localItemsCount = (() => {
-            try {
-              const saved = localStorage.getItem('smart_schedule_items');
-              return saved ? JSON.parse(saved).length : 0;
-            } catch { return 0; }
-          })();
-
-          console.log('[HYDRATION]', {
-            authReady: !!user,
-            loadingSchedules: false,
-            firestoreSchedules: fsSchedulesResult.status === 'success' ? (fsSchedulesResult.exists ? fsSchedulesResult.items.length : 'EMPTY') : 'ERROR',
-            localSchedules: localItemsCount,
-            dataReady: true,
-            isHydrating: false
-          });
         } catch (err) {
           console.error('Failed to sync Firestore data on login:', err);
         } finally {
           if (!isCancelled) {
             isHydratingRef.current = false;
+            dataReadyRef.current = true;
             setDataReady(true);
             setAuthLoading(false);
             setAutoSaveStatus('saved');
+            console.log('[HYDRATION] DATA READY');
           }
         }
       } else {
         if (!isCancelled) {
           setAppUser(null);
           isHydratingRef.current = false;
+          dataReadyRef.current = false;
           setDataReady(false);
           setAuthLoading(false);
         }
@@ -382,15 +421,15 @@ export default function App() {
 
   // Save schedules to LocalStorage & Firestore with Auto-save indicator
   const updateSchedulesWithHistory = (newSchedules: ScheduleItem[]) => {
-    if (!dataReady || isHydratingRef.current) {
-      console.warn('[DATA WRITE] Blocked updateSchedulesWithHistory: dataReady is false or hydrating');
+    if (isHydratingRef.current || !dataReadyRef.current) {
+      console.warn('[DATA WRITE] Blocked updateSchedulesWithHistory: hydration in progress or data not ready');
       return;
     }
     const sanitized = ensureUniqueScheduleIds(newSchedules);
 
     console.log('[SCHEDULE-SAVE]', {
       reason: 'user_action_or_generate',
-      dataReady,
+      dataReady: dataReadyRef.current,
       isHydrating: isHydratingRef.current,
       itemCount: sanitized.length
     });
@@ -402,10 +441,12 @@ export default function App() {
     setAutoSaveStatus('saving');
     setHistory(prev => [...prev, schedules]);
     setRedoStack([]);
+    console.log('[SCHEDULE-STATE-BEFORE]', schedules);
+    console.log('[SCHEDULE-STATE-SET]', sanitized);
     setSchedules(sanitized);
     localStorage.setItem('smart_schedule_items', JSON.stringify(sanitized));
     const currentUid = authUser?.uid || auth.currentUser?.uid;
-    if (currentUid && dataReady && !isHydratingRef.current) {
+    if (currentUid && dataReadyRef.current && !isHydratingRef.current) {
       saveSchedulesToFirestore(currentUid, sanitized);
       console.log(`[SAVE] weeklySchedules count: ${sanitized.length}`);
     } else {
@@ -417,25 +458,29 @@ export default function App() {
   };
 
   const handleUndo = () => {
-    if (!dataReady || isHydratingRef.current || history.length === 0) return;
+    if (isHydratingRef.current || !dataReadyRef.current || history.length === 0) return;
     const previous = history[history.length - 1];
     setRedoStack(prev => [schedules, ...prev]);
     setHistory(prev => prev.slice(0, -1));
+    console.log('[SCHEDULE-STATE-BEFORE]', schedules);
+    console.log('[SCHEDULE-STATE-SET]', previous);
     setSchedules(previous);
     localStorage.setItem('smart_schedule_items', JSON.stringify(previous));
-    if (authUser?.uid) {
+    if (authUser?.uid && dataReadyRef.current && !isHydratingRef.current) {
       saveSchedulesToFirestore(authUser.uid, previous);
     }
   };
 
   const handleRedo = () => {
-    if (!dataReady || isHydratingRef.current || redoStack.length === 0) return;
+    if (isHydratingRef.current || !dataReadyRef.current || redoStack.length === 0) return;
     const next = redoStack[0];
     setHistory(prev => [...prev, schedules]);
     setRedoStack(prev => prev.slice(1));
+    console.log('[SCHEDULE-STATE-BEFORE]', schedules);
+    console.log('[SCHEDULE-STATE-SET]', next);
     setSchedules(next);
     localStorage.setItem('smart_schedule_items', JSON.stringify(next));
-    if (authUser?.uid) {
+    if (authUser?.uid && dataReadyRef.current && !isHydratingRef.current) {
       saveSchedulesToFirestore(authUser.uid, next);
     }
   };
