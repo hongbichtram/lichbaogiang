@@ -1,26 +1,7 @@
 import React from 'react';
 import { X, Printer, FileText, FileSpreadsheet, Download } from 'lucide-react';
 import { ScheduleItem, TeacherProfile, PrintSettings, DEFAULT_PRINT_SETTINGS } from '../types';
-import { exportWeeklyWordDoc, exportWeeklyExcel, groupSchedulesByDay, getWeekDayDate } from '../utils/exportUtils';
-import { formatLessonDisplayTitle, getNormalizedSession, getNormalizedPeriod } from '../utils/classUtils';
-
-const FIXED_DAYS = [
-  { key: 'Thứ 2', displayName: 'Thứ Hai' },
-  { key: 'Thứ 3', displayName: 'Thứ Ba' },
-  { key: 'Thứ 4', displayName: 'Thứ Tư' },
-  { key: 'Thứ 5', displayName: 'Thứ Năm' },
-  { key: 'Thứ 6', displayName: 'Thứ Sáu' },
-] as const;
-
-const FIXED_ROW_CONFIGS = [
-  { session: 'Sáng', period: 1, label: 'Tiết 1', isFirstInSession: true, sessionRowSpan: 4 },
-  { session: 'Sáng', period: 2, label: 'Tiết 2', isFirstInSession: false, sessionRowSpan: 0 },
-  { session: 'Sáng', period: 3, label: 'Tiết 3', isFirstInSession: false, sessionRowSpan: 0 },
-  { session: 'Sáng', period: 4, label: 'Tiết 4', isFirstInSession: false, sessionRowSpan: 0 },
-  { session: 'Chiều', period: 1, label: 'Tiết 1', isFirstInSession: true, sessionRowSpan: 3 },
-  { session: 'Chiều', period: 2, label: 'Tiết 2', isFirstInSession: false, sessionRowSpan: 0 },
-  { session: 'Chiều', period: 3, label: 'Tiết 3', isFirstInSession: false, sessionRowSpan: 0 },
-] as const;
+import { exportWeeklyWordDoc, exportWeeklyExcel, buildLessonReportTableData, getWeekDayDate } from '../utils/exportUtils';
 
 interface PrintPreviewModalProps {
   isOpen: boolean;
@@ -56,7 +37,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
 
   // Filter schedules for current week
   const weekSchedules = schedules.filter((s) => s.weekNumber === currentWeek);
-  const dayGroups = groupSchedulesByDay(weekSchedules, currentWeek, teacher.academicYear);
+  const tableData = buildLessonReportTableData(weekSchedules, currentWeek, teacher.academicYear);
 
   const handleExportWord = () => {
     exportWeeklyWordDoc(weekSchedules, teacher, currentWeek);
@@ -271,82 +252,60 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {FIXED_DAYS.map((day) => {
-                    const dayScheduleItems = weekSchedules.filter((s) => s.dayOfWeek === day.key);
-                    const dateStr =
-                      dayScheduleItems.find((s) => !!s.date)?.date ||
-                      getWeekDayDate(currentWeek, day.key, teacher.academicYear);
-
-                    return FIXED_ROW_CONFIGS.map((rowCfg, rowIdx) => {
-                      const isFirstInDay = rowIdx === 0;
-                      const matchingItem = dayScheduleItems.find(
-                        (s) =>
-                          getNormalizedSession(s) === rowCfg.session &&
-                          getNormalizedPeriod(s) === rowCfg.period
-                      );
-
-                      return (
-                        <tr
-                          key={`${day.key}-${rowCfg.session}-${rowCfg.period}`}
-                          className="border-b border-slate-900"
+                  {tableData.allRows.map((row) => (
+                    <tr
+                      key={`${row.dayKey}-${row.session}-${row.period}`}
+                      className="border-b border-slate-900"
+                    >
+                      {/* Cột 1: Thứ, ngày tháng năm (RowSpan = 7) */}
+                      {row.isFirstInDay && (
+                        <td
+                          rowSpan={row.dayRowSpan}
+                          className="border border-slate-900 px-1 py-1 text-center align-middle bg-white font-bold text-slate-900"
                         >
-                          {/* Cột 1: Thứ, ngày tháng năm (RowSpan = 7) */}
-                          {isFirstInDay && (
-                            <td
-                              rowSpan={7}
-                              className="border border-slate-900 px-1 py-1 text-center align-middle bg-white font-bold text-slate-900"
-                            >
-                              <div className="font-bold text-slate-900">{day.displayName}</div>
-                              {dateStr && (
-                                <div className="text-[7.5pt] font-normal text-slate-700 mt-0.5 whitespace-nowrap">
-                                  {dateStr}
-                                </div>
-                              )}
-                            </td>
+                          <div className="font-bold text-slate-900">{row.dayDisplayName}</div>
+                          {row.dateStr && (
+                            <div className="text-[7.5pt] font-normal text-slate-700 mt-0.5 whitespace-nowrap">
+                              {row.dateStr}
+                            </div>
                           )}
+                        </td>
+                      )}
 
-                          {/* Cột 2: Buổi (Sáng rowSpan=4, Chiều rowSpan=3) */}
-                          {rowCfg.isFirstInSession && (
-                            <td
-                              rowSpan={rowCfg.sessionRowSpan}
-                              className="border border-slate-900 px-1 py-1 text-center align-middle bg-white font-bold text-slate-900 whitespace-nowrap"
-                            >
-                              {rowCfg.session}
-                            </td>
-                          )}
+                      {/* Cột 2: Buổi (Sáng rowSpan=4, Chiều rowSpan=3) */}
+                      {row.isFirstInSession && (
+                        <td
+                          rowSpan={row.sessionRowSpan}
+                          className="border border-slate-900 px-1 py-1 text-center align-middle bg-white font-bold text-slate-900 whitespace-nowrap"
+                        >
+                          {row.session}
+                        </td>
+                      )}
 
-                          {/* Cột 3: Tiết */}
-                          <td className="border border-slate-900 px-1 py-1 text-center align-middle font-medium text-slate-900 whitespace-nowrap">
-                            {rowCfg.label}
-                          </td>
+                      {/* Cột 3: Tiết */}
+                      <td className="border border-slate-900 px-1 py-1 text-center align-middle font-medium text-slate-900 whitespace-nowrap">
+                        {row.periodLabel}
+                      </td>
 
-                          {/* Cột 4: Lớp */}
-                          <td className="border border-slate-900 px-1 py-1 text-center align-middle font-bold text-slate-900 whitespace-nowrap">
-                            {matchingItem?.className || ''}
-                          </td>
+                      {/* Cột 4: Lớp */}
+                      <td className="border border-slate-900 px-1 py-1 text-center align-middle font-bold text-slate-900 whitespace-nowrap">
+                        {row.className}
+                      </td>
 
-                          {/* Cột 5: Tên bài dạy */}
-                          <td
-                            style={{ fontWeight: cfg.isLessonTitleBold ? 'bold' : 'normal' }}
-                            className="border border-slate-900 px-1.5 py-1 align-middle text-left text-slate-900"
-                          >
-                            {matchingItem
-                              ? formatLessonDisplayTitle(
-                                  matchingItem.lessonTitle,
-                                  matchingItem.subject,
-                                  ''
-                                )
-                              : ''}
-                          </td>
+                      {/* Cột 5: Tên bài dạy */}
+                      <td
+                        style={{ fontWeight: cfg.isLessonTitleBold ? 'bold' : 'normal' }}
+                        className="border border-slate-900 px-1.5 py-1 align-middle text-left text-slate-900"
+                      >
+                        {row.displayLessonTitle}
+                      </td>
 
-                          {/* Cột 6: Ghi chú */}
-                          <td className="border border-slate-900 px-1.5 py-1 align-middle text-left text-slate-800">
-                            {matchingItem?.notes || ''}
-                          </td>
-                        </tr>
-                      );
-                    });
-                  })}
+                      {/* Cột 6: Ghi chú */}
+                      <td className="border border-slate-900 px-1.5 py-1 align-middle text-left text-slate-800">
+                        {row.notes}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
