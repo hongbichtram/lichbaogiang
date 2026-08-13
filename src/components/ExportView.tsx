@@ -11,8 +11,26 @@ import {
   Calendar 
 } from 'lucide-react';
 import { ScheduleItem, TeacherProfile } from '../types';
-import { exportWeeklyWordDoc, exportWeeklyExcel, groupSchedulesByDay } from '../utils/exportUtils';
-import { formatLessonDisplayTitle } from '../utils/classUtils';
+import { exportWeeklyWordDoc, exportWeeklyExcel, groupSchedulesByDay, getWeekDayDate } from '../utils/exportUtils';
+import { formatLessonDisplayTitle, getNormalizedSession, getNormalizedPeriod } from '../utils/classUtils';
+
+const FIXED_DAYS = [
+  { key: 'Thứ 2', displayName: 'Thứ Hai' },
+  { key: 'Thứ 3', displayName: 'Thứ Ba' },
+  { key: 'Thứ 4', displayName: 'Thứ Tư' },
+  { key: 'Thứ 5', displayName: 'Thứ Năm' },
+  { key: 'Thứ 6', displayName: 'Thứ Sáu' },
+] as const;
+
+const FIXED_ROW_CONFIGS = [
+  { session: 'Sáng', period: 1, label: 'Tiết 1', isFirstInSession: true, sessionRowSpan: 4 },
+  { session: 'Sáng', period: 2, label: 'Tiết 2', isFirstInSession: false, sessionRowSpan: 0 },
+  { session: 'Sáng', period: 3, label: 'Tiết 3', isFirstInSession: false, sessionRowSpan: 0 },
+  { session: 'Sáng', period: 4, label: 'Tiết 4', isFirstInSession: false, sessionRowSpan: 0 },
+  { session: 'Chiều', period: 1, label: 'Tiết 1', isFirstInSession: true, sessionRowSpan: 3 },
+  { session: 'Chiều', period: 2, label: 'Tiết 2', isFirstInSession: false, sessionRowSpan: 0 },
+  { session: 'Chiều', period: 3, label: 'Tiết 3', isFirstInSession: false, sessionRowSpan: 0 },
+] as const;
 
 interface ExportViewProps {
   teacher: TeacherProfile;
@@ -157,46 +175,91 @@ export const ExportView: React.FC<ExportViewProps> = ({ teacher, schedules, curr
 
         {/* Printable Schedule Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse border border-slate-400 text-[13pt] font-['Times_New_Roman',_serif] mx-auto">
+          <table className="w-full text-left border-collapse border border-slate-900 text-[10pt] font-['Times_New_Roman',_serif] mx-auto leading-tight">
             <thead>
-              <tr className="bg-slate-100 text-slate-900 font-bold border-b border-slate-400 text-center">
-                <th className="border border-slate-400 p-2.5 w-[17%] text-center align-middle">Thứ, ngày tháng năm</th>
-                <th className="border border-slate-400 p-2.5 w-[8%] text-center align-middle">Tiết</th>
-                <th className="border border-slate-400 p-2.5 w-[8%] text-center align-middle">Lớp</th>
-                <th className="border border-slate-400 p-2.5 w-[10%] text-center align-middle">Tiết PPCT</th>
-                <th className="border border-slate-400 p-2.5 w-[45%] text-center align-middle">Tên bài dạy / Nội dung</th>
-                <th className="border border-slate-400 p-2.5 w-[12%] text-center align-middle">Ghi chú</th>
+              <tr className="bg-slate-100 text-slate-900 font-bold border-b border-slate-900 text-center">
+                <th className="border border-slate-900 py-1.5 px-1 w-[17%] align-middle">Thứ, ngày tháng năm</th>
+                <th className="border border-slate-900 py-1.5 px-1 w-[8%] align-middle">Buổi</th>
+                <th className="border border-slate-900 py-1.5 px-1 w-[7%] align-middle">Tiết</th>
+                <th className="border border-slate-900 py-1.5 px-1 w-[8%] align-middle">Lớp</th>
+                <th className="border border-slate-900 py-1.5 px-1 w-[48%] align-middle">Tên bài dạy</th>
+                <th className="border border-slate-900 py-1.5 px-1 w-[12%] align-middle">Ghi chú</th>
               </tr>
             </thead>
             <tbody>
-              {dayGroups.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="text-center p-6 text-slate-400 italic align-middle">
-                    Chưa có lịch báo giảng trong tuần này.
-                  </td>
-                </tr>
-              ) : (
-                dayGroups.map((group) =>
-                  group.items.map((item, itemIdx) => (
-                    <tr key={item.id} className="border-b border-slate-300 min-h-[38px]">
-                      {itemIdx === 0 && (
+              {FIXED_DAYS.map((day) => {
+                const dayScheduleItems = exportSchedules.filter((s) => s.dayOfWeek === day.key);
+                const dateStr =
+                  dayScheduleItems.find((s) => !!s.date)?.date ||
+                  getWeekDayDate(selectedWeek, day.key, teacher.academicYear);
+
+                return FIXED_ROW_CONFIGS.map((rowCfg, rowIdx) => {
+                  const isFirstInDay = rowIdx === 0;
+                  const matchingItem = dayScheduleItems.find(
+                    (s) =>
+                      getNormalizedSession(s) === rowCfg.session &&
+                      getNormalizedPeriod(s) === rowCfg.period
+                  );
+
+                  return (
+                    <tr
+                      key={`${day.key}-${rowCfg.session}-${rowCfg.period}`}
+                      className="border-b border-slate-900"
+                    >
+                      {/* Cột 1: Thứ, ngày tháng năm (RowSpan = 7) */}
+                      {isFirstInDay && (
                         <td
-                          rowSpan={group.items.length}
-                          className="border border-slate-400 px-2.5 py-2 text-center align-middle font-['Times_New_Roman',_serif] bg-white"
+                          rowSpan={7}
+                          className="border border-slate-900 px-1 py-1 text-center align-middle bg-white font-bold text-slate-900"
                         >
-                          <div className="font-bold text-[13pt] text-slate-900">{group.dayDisplayName}</div>
-                          <div className="text-[11pt] font-normal text-slate-600 mt-0.5">{group.dateStr}</div>
+                          <div className="font-bold text-slate-900 text-[10.5pt]">{day.displayName}</div>
+                          {dateStr && (
+                            <div className="text-[8.5pt] font-normal text-slate-700 mt-0.5 whitespace-nowrap">
+                              {dateStr}
+                            </div>
+                          )}
                         </td>
                       )}
-                      <td className="border border-slate-400 px-2 py-2 text-center align-middle">Tiết {item.period}</td>
-                      <td className="border border-slate-400 px-2 py-2 text-center align-middle font-bold">{item.className}</td>
-                      <td className="border border-slate-400 px-2 py-2 text-center align-middle">{item.ppctPeriod || '-'}</td>
-                      <td className="border border-slate-400 px-2.5 py-2 align-middle font-medium">{formatLessonDisplayTitle(item.lessonTitle, item.subject, 'Chưa cập nhật')}</td>
-                      <td className="border border-slate-400 px-2.5 py-2 align-middle text-slate-700">{item.notes || ''}</td>
+
+                      {/* Cột 2: Buổi (Sáng rowSpan=4, Chiều rowSpan=3) */}
+                      {rowCfg.isFirstInSession && (
+                        <td
+                          rowSpan={rowCfg.sessionRowSpan}
+                          className="border border-slate-900 px-1 py-1 text-center align-middle bg-white font-bold text-slate-900 whitespace-nowrap"
+                        >
+                          {rowCfg.session}
+                        </td>
+                      )}
+
+                      {/* Cột 3: Tiết */}
+                      <td className="border border-slate-900 px-1 py-1 text-center align-middle font-medium text-slate-900 whitespace-nowrap">
+                        {rowCfg.label}
+                      </td>
+
+                      {/* Cột 4: Lớp */}
+                      <td className="border border-slate-900 px-1 py-1 text-center align-middle font-bold text-slate-900 whitespace-nowrap">
+                        {matchingItem?.className || ''}
+                      </td>
+
+                      {/* Cột 5: Tên bài dạy */}
+                      <td className="border border-slate-900 px-1.5 py-1 align-middle text-left text-slate-900">
+                        {matchingItem
+                          ? formatLessonDisplayTitle(
+                              matchingItem.lessonTitle,
+                              matchingItem.subject,
+                              ''
+                            )
+                          : ''}
+                      </td>
+
+                      {/* Cột 6: Ghi chú */}
+                      <td className="border border-slate-900 px-1.5 py-1 align-middle text-left text-slate-800">
+                        {matchingItem?.notes || ''}
+                      </td>
                     </tr>
-                  ))
-                )
-              )}
+                  );
+                });
+              })}
             </tbody>
           </table>
         </div>
