@@ -8,9 +8,7 @@ import {
   Loader2, 
   AlertCircle, 
   ShieldCheck, 
-  BookOpen,
   Sparkles,
-  Building2,
   Phone
 } from 'lucide-react';
 import { loginWithEmailAndPassword, signInWithGoogle } from '../../lib/firebase';
@@ -44,9 +42,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ darkMode = true }) => 
     return () => { isMounted = false; };
   }, []);
 
-  const schoolName = sysConfig?.schoolName?.trim() || "LỊCH BÁO GIẢNG TIỂU HỌC";
-  const supportEmail = sysConfig?.supportEmail?.trim() || sysConfig?.contactEmail?.trim() || "Chưa cập nhật";
-  const supportPhone = sysConfig?.supportPhone?.trim() || sysConfig?.contactPhone?.trim() || "Chưa cập nhật";
+  // Determine support email and phone with fallbacks as required
+  const rawEmail = sysConfig?.supportEmail?.trim() || sysConfig?.contactEmail?.trim() || '';
+  const supportEmail = (!rawEmail || rawEmail.includes('truongtieuhoc.edu.vn') || rawEmail === 'admin@truongtieuhoc.edu.vn')
+    ? 'hongbichtram13@gmail.com'
+    : rawEmail;
+
+  const rawPhone = sysConfig?.supportPhone?.trim() || sysConfig?.contactPhone?.trim() || '';
+  const supportPhone = (!rawPhone || rawPhone === '0901234567')
+    ? '0973474027'
+    : rawPhone;
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,11 +106,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ darkMode = true }) => 
   };
 
   return (
-    <div className="min-h-screen bg-[#090D16] text-slate-100 flex flex-col justify-between relative overflow-hidden font-sans selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen sm:h-screen bg-[#090D16] text-slate-100 flex flex-col justify-between relative overflow-x-hidden overflow-y-auto sm:overflow-hidden font-sans selection:bg-indigo-500 selection:text-white">
       {/* Dynamic Ambient Background Elements */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-indigo-600/15 rounded-full blur-[140px] pointer-events-none" />
-      <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-blue-600/10 rounded-full blur-[160px] pointer-events-none" />
-      <div className="absolute top-1/3 left-0 w-[400px] h-[400px] bg-purple-600/10 rounded-full blur-[150px] pointer-events-none" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-indigo-600/15 rounded-full blur-[130px] pointer-events-none" />
+      <div className="absolute bottom-0 right-0 w-[450px] h-[450px] bg-blue-600/10 rounded-full blur-[150px] pointer-events-none" />
+      <div className="absolute top-1/3 left-0 w-[350px] h-[350px] bg-purple-600/10 rounded-full blur-[140px] pointer-events-none" />
 
       {/* Grid Pattern Overlay */}
       <div 
@@ -117,10 +122,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ darkMode = true }) => 
       />
 
       {/* Header Branding */}
-      <header className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between">
-        <div className="flex items-center space-x-2.5">
-          <div className="p-2 rounded-xl bg-gradient-to-tr from-indigo-600 to-blue-500 text-white shadow-md shadow-indigo-500/20 border border-indigo-400/30">
-            <Calendar className="w-5 h-5" />
+      <header className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between shrink-0">
+        <div className="flex items-center space-x-2">
+          <div className="p-1.5 rounded-lg bg-gradient-to-tr from-indigo-600 to-blue-500 text-white shadow-sm shadow-indigo-500/20 border border-indigo-400/30">
+            <Calendar className="w-4 h-4" />
           </div>
           <div>
             <span className="font-black text-xs sm:text-sm tracking-wider uppercase text-white block leading-tight">LỊCH BÁO GIẢNG</span>
@@ -128,36 +133,31 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ darkMode = true }) => 
           </div>
         </div>
 
-        <div className="hidden sm:flex items-center space-x-2 px-3 py-1 rounded-full bg-slate-900/80 border border-slate-800 text-[11px] text-slate-400">
+        <div className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-slate-900/80 border border-slate-800 text-[10px] text-slate-400">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
           <span>Hệ thống Quản lý Chuyên môn An toàn</span>
         </div>
       </header>
 
       {/* Main Login Form Container */}
-      <main className="relative z-10 flex-1 flex items-center justify-center p-3 sm:p-4 my-auto">
-        <div className="w-full max-w-[420px] space-y-2">
+      <main className="relative z-10 flex-1 flex items-center justify-center p-3 sm:p-4 my-auto shrink-0">
+        <div className="w-full max-w-[400px] space-y-2">
           
           {/* Main Card */}
-          <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-2xl shadow-black/80 relative overflow-hidden">
+          <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-2xl shadow-black/80 relative overflow-hidden">
             
             {/* Top Decorative Highlight */}
             <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-80" />
 
             {/* Login Banner Section */}
-            <div className="mb-4 rounded-xl bg-gradient-to-br from-indigo-950/80 via-slate-900 to-blue-950/80 border border-indigo-500/25 p-3.5 sm:p-4 shadow-inner text-center space-y-2">
-              {/* School Name / Institution */}
-              <div className="inline-flex items-center justify-center space-x-2 px-3 py-0.5 rounded-full bg-indigo-500/15 border border-indigo-400/20 text-indigo-300 text-xs sm:text-sm font-bold max-w-full">
-                <Building2 className="w-3.5 h-3.5 shrink-0 text-indigo-400" />
-                <span className="truncate text-[13px] sm:text-[15px]">{schoolName}</span>
-              </div>
-
+            <div className="mb-3.5 rounded-xl bg-gradient-to-br from-indigo-950/80 via-slate-900 to-blue-950/80 border border-indigo-500/25 p-3 sm:p-3.5 shadow-inner text-center space-y-1.5">
+              
               {/* Main Title & Subtitle */}
               <div className="space-y-0.5">
-                <h1 className="text-xl sm:text-2xl font-black uppercase tracking-wide text-white drop-shadow-sm leading-tight">
+                <h1 className="text-lg sm:text-xl font-black uppercase tracking-wide text-white drop-shadow-sm leading-tight">
                   LỊCH BÁO GIẢNG TIỂU HỌC
                 </h1>
-                <p className="text-xs text-slate-300 font-medium">
+                <p className="text-[11px] text-slate-300 font-medium">
                   Quản lý thời khóa biểu và lịch báo giảng cá nhân
                 </p>
               </div>
@@ -178,18 +178,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ darkMode = true }) => 
 
             {/* Error Message Box */}
             {errorMessage && (
-              <div className="mb-3.5 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center space-x-2.5 animate-shake">
+              <div className="mb-3 p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center space-x-2 animate-shake">
                 <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0" />
                 <div className="flex-1 font-medium">{errorMessage}</div>
               </div>
             )}
 
             {/* Form */}
-            <form onSubmit={handleEmailLogin} className="space-y-3.5">
+            <form onSubmit={handleEmailLogin} className="space-y-3">
               
               {/* Email Input */}
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block">
+                <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider block">
                   Địa chỉ Email
                 </label>
                 <div className="relative">
@@ -200,10 +200,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ darkMode = true }) => 
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="vd: giaovien@nguyendu.edu.vn"
+                    placeholder="vd: giaovien@example.com"
                     disabled={loading || googleLoading}
                     required
-                    className="w-full pl-9 pr-3.5 h-[42px] bg-slate-950/80 border border-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl text-xs text-white placeholder-slate-600 transition-all outline-none"
+                    className="w-full pl-9 pr-3.5 h-[40px] bg-slate-950/80 border border-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl text-xs text-white placeholder-slate-600 transition-all outline-none"
                   />
                 </div>
               </div>
@@ -211,7 +211,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ darkMode = true }) => 
               {/* Password Input */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block">
+                  <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider block">
                     Mật khẩu
                   </label>
                 </div>
@@ -226,7 +226,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ darkMode = true }) => 
                     placeholder="••••••••"
                     disabled={loading || googleLoading}
                     required
-                    className="w-full pl-9 pr-10 h-[42px] bg-slate-950/80 border border-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl text-xs text-white placeholder-slate-600 transition-all outline-none"
+                    className="w-full pl-9 pr-10 h-[40px] bg-slate-950/80 border border-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl text-xs text-white placeholder-slate-600 transition-all outline-none"
                   />
                   <button
                     type="button"
@@ -243,7 +243,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ darkMode = true }) => 
               <button
                 type="submit"
                 disabled={loading || googleLoading}
-                className="w-full h-[42px] px-4 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 active:from-indigo-700 active:to-blue-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-md shadow-indigo-600/25 border border-indigo-500/30 transition-all flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer pt-0.5"
+                className="w-full h-[40px] px-4 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 active:from-indigo-700 active:to-blue-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-md shadow-indigo-600/25 border border-indigo-500/30 transition-all flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer pt-0.5"
               >
                 {loading ? (
                   <>
@@ -261,7 +261,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ darkMode = true }) => 
             </form>
 
             {/* Divider */}
-            <div className="relative my-3.5">
+            <div className="relative my-3">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-slate-800" />
               </div>
@@ -275,7 +275,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ darkMode = true }) => 
               type="button"
               onClick={handleGoogleLogin}
               disabled={loading || googleLoading}
-              className="w-full h-[42px] px-4 bg-slate-950 hover:bg-slate-800 text-slate-200 font-bold text-xs rounded-xl border border-slate-800 hover:border-slate-700 transition-all flex items-center justify-center space-x-2.5 disabled:opacity-50 cursor-pointer"
+              className="w-full h-[40px] px-4 bg-slate-950 hover:bg-slate-800 text-slate-200 font-bold text-xs rounded-xl border border-slate-800 hover:border-slate-700 transition-all flex items-center justify-center space-x-2.5 disabled:opacity-50 cursor-pointer"
             >
               {googleLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
@@ -317,3 +317,4 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ darkMode = true }) => 
     </div>
   );
 };
+

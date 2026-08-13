@@ -325,57 +325,57 @@ export const TimetableView: React.FC<TimetableViewProps> = ({
   };
 
   return (
-    <div className="space-y-6 pb-12 max-w-7xl mx-auto animate-fadeIn">
-      {/* Page Header */}
-      <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="space-y-1">
-          <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white flex items-center space-x-2">
-            <Clock className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            <span>THỜI KHÓA BIỂU CỐ ĐỊNH</span>
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">
-            Quản lý tất cả môn học và chia phiên bản TKB theo tuần áp dụng.
-          </p>
+    <div className="space-y-4 pb-8 max-w-[1400px] mx-auto animate-fadeIn font-sans">
+      {/* 1. HEADER GỌN */}
+      <div className="bg-white dark:bg-slate-800 px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center space-x-2.5">
+          <div className="p-1.5 rounded-lg bg-blue-600/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 shrink-0">
+            <Clock className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white uppercase tracking-wide leading-tight">
+              THỜI KHÓA BIỂU CỐ ĐỊNH
+            </h2>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+              Phân công tiết dạy và quản lý phiên bản TKB áp dụng theo tuần
+            </p>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={() => {
               onAutoGenerateSchedule();
               alert('⚡ Đã lập Lịch báo giảng 35 tuần tự động từ Thời khóa biểu!');
             }}
-            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold shadow-md shadow-emerald-500/20 transition-all flex items-center justify-center space-x-2 cursor-pointer"
+            className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg text-xs font-bold shadow-sm shadow-emerald-600/20 transition-all flex items-center justify-center space-x-1.5 cursor-pointer border border-emerald-500/30"
           >
-            <Sparkles className="w-4 h-4" />
+            <Sparkles className="w-3.5 h-3.5" />
             <span>⚡ Lập Lịch Báo Giảng Tự Động (35 Tuần)</span>
           </button>
         </div>
       </div>
 
-      {/* Timetable Versioning Selector Bar */}
-      <div className="bg-gradient-to-r from-blue-50/80 via-indigo-50/80 to-purple-50/80 dark:from-slate-800 dark:via-slate-800 dark:to-slate-800 p-5 rounded-2xl border border-indigo-200/80 dark:border-indigo-900/60 shadow-xs space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <h3 className="text-sm font-extrabold text-indigo-950 dark:text-indigo-200 flex items-center gap-2">
-              <Clock className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              <span>Cấu Hình Phiên Bản TKB Theo Tuần</span>
-            </h3>
-            <p className="text-xs text-indigo-800/80 dark:text-slate-400">
-              TKB mới sẽ bắt đầu có hiệu lực từ tuần đã chọn và tiếp tục áp dụng cho các tuần sau cho đến trước khi có phiên bản TKB mới.
-            </p>
-          </div>
+      {/* 2. THANH CÔNG CỤ PHIÊN BẢN TKB & PHÂN CÔNG LỚP (COMPACT TOOLBAR) */}
+      <div className="bg-slate-900 text-white p-3.5 sm:p-4 rounded-xl border border-slate-800 shadow-sm space-y-3">
+        {/* Row 1: Timetable Versioning Controls */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 text-xs pb-2.5 border-b border-slate-800">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-extrabold text-indigo-400 uppercase tracking-wider text-[11px] shrink-0 flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5" />
+              <span>Phiên bản TKB:</span>
+            </span>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-indigo-200 dark:border-slate-700">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">Áp dụng từ tuần:</label>
+            <div className="flex items-center gap-1.5 bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700">
+              <span className="text-[11px] text-slate-300 font-medium whitespace-nowrap">Áp dụng từ tuần:</span>
               <select
                 value={applyFromWeek}
                 onChange={(e) => setApplyFromWeek(Number(e.target.value))}
-                className="bg-transparent text-xs font-black text-indigo-600 dark:text-indigo-400 focus:outline-none cursor-pointer"
+                className="bg-transparent text-xs font-black text-indigo-300 focus:outline-none cursor-pointer"
               >
                 {Array.from({ length: 35 }, (_, i) => i + 1).map((w) => (
-                  <option key={w} value={w}>Tuần {w}</option>
+                  <option key={w} value={w} className="bg-slate-900 text-white">Tuần {w}</option>
                 ))}
               </select>
             </div>
@@ -384,17 +384,15 @@ export const TimetableView: React.FC<TimetableViewProps> = ({
               type="text"
               value={versionNameInput}
               onChange={(e) => setVersionNameInput(e.target.value)}
-              placeholder="Tên phiên bản (ví dụ: TKB áp dụng từ HK2)..."
-              className="px-3 py-1.5 text-xs font-medium bg-white dark:bg-slate-900 border border-indigo-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white max-w-xs"
+              placeholder="Tên phiên bản (ví dụ: TKB áp dụng HK2)..."
+              className="px-2.5 py-1 text-xs bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 max-w-xs focus:outline-none focus:border-indigo-500"
             />
           </div>
-        </div>
 
-        {/* Display existing versions with selection and delete option */}
-        {timetableVersions && timetableVersions.length > 0 && (
-          <div className="pt-2 border-t border-indigo-100 dark:border-slate-700/60 space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Các phiên bản hiện có:</span>
+          {/* Existing Version Badges */}
+          {timetableVersions && timetableVersions.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+              <span className="text-[10px] text-slate-400 font-semibold uppercase">Đã lưu:</span>
               {timetableVersions.map((v) => {
                 const isSelected = selectedVersionId === v.id;
                 const isAppliesToWeek = applyFromWeek >= v.fromWeek && applyFromWeek <= v.toWeek;
@@ -403,100 +401,85 @@ export const TimetableView: React.FC<TimetableViewProps> = ({
                     key={v.id}
                     type="button"
                     onClick={() => handleSelectVersion(v)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 border transition-all cursor-pointer ${
+                    className={`px-2 py-0.5 rounded-md text-[11px] font-bold flex items-center gap-1 border transition-all cursor-pointer ${
                       isSelected
-                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-md ring-2 ring-indigo-400 dark:ring-indigo-500'
+                        ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm ring-1 ring-indigo-400'
                         : isAppliesToWeek
-                        ? 'bg-indigo-100 text-indigo-900 dark:bg-indigo-950 dark:text-indigo-200 border-indigo-300 dark:border-indigo-700'
-                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-indigo-300'
+                        ? 'bg-indigo-950/80 text-indigo-300 border-indigo-700'
+                        : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-500'
                     }`}
                   >
                     <span>{v.versionName || 'TKB'}</span>
-                    <span className="opacity-80 font-mono">(Tuần {v.fromWeek} – {v.toWeek})</span>
+                    <span className="opacity-75 text-[10px] font-mono">(T{v.fromWeek}–T{v.toWeek})</span>
                   </button>
                 );
               })}
-            </div>
 
-            {selectedVersion && (
-              <div className="flex flex-wrap items-center justify-between gap-2 bg-indigo-50/80 dark:bg-slate-900/90 px-3 py-2 rounded-xl border border-indigo-200 dark:border-slate-700 animate-fadeIn text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-indigo-900 dark:text-indigo-300">Đã chọn phiên bản:</span>
-                  <span className="font-extrabold text-slate-900 dark:text-white">
-                    {selectedVersion.versionName || 'Thời khóa biểu'}
-                  </span>
-                  <span className="font-mono text-slate-500 dark:text-slate-400 text-[11px]">
-                    (Tuần {selectedVersion.fromWeek} – {selectedVersion.toWeek})
-                  </span>
-                </div>
-
+              {selectedVersion && (
                 <button
                   type="button"
                   onClick={() => {
                     setVersionToDelete(selectedVersion);
                     setShowDeleteConfirmModal(true);
                   }}
-                  className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+                  className="px-2 py-0.5 bg-rose-600/80 hover:bg-rose-600 text-white rounded-md text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer ml-1"
+                  title="Xóa phiên bản TKB đang chọn"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Xóa phiên bản</span>
+                  <Trash2 className="w-3 h-3" />
+                  <span>Xóa</span>
                 </button>
-              </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Row 2: Assigned Classes Tags & Add Class Form */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 flex items-center gap-1">
+              <School className="w-3.5 h-3.5 text-blue-400" />
+              <span>Lớp dạy ({assignedClasses.length}):</span>
+            </span>
+
+            {assignedClasses.length === 0 ? (
+              <span className="text-xs text-amber-400 italic font-medium">Chưa chọn lớp học nào</span>
+            ) : (
+              assignedClasses.map((cls) => (
+                <span
+                  key={cls}
+                  className="px-2 py-0.5 bg-slate-800 border border-slate-700 rounded-lg inline-flex items-center gap-1 text-xs font-bold text-slate-200"
+                >
+                  <span>{cls}</span>
+                  <span className="text-[10px] text-slate-400 font-normal">({inferGradeFromClassName(cls)})</span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveClass(cls)}
+                    className="text-slate-500 hover:text-rose-400 transition-colors ml-0.5 cursor-pointer"
+                    title={`Xóa lớp ${cls}`}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))
             )}
           </div>
-        )}
-      </div>
 
-      {/* Class Management Bar */}
-      <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-700/60 pb-3">
-          <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center space-x-2">
-            <School className="w-4 h-4 text-blue-500" />
-            <span>Danh Sách Lớp Dạy ({assignedClasses.length} lớp)</span>
-          </h3>
-
-          <form onSubmit={handleAddClass} className="flex items-center gap-2 max-w-md w-full">
+          <form onSubmit={handleAddClass} className="flex items-center gap-1.5 shrink-0">
             <input
               type="text"
               value={addClassInput}
               onChange={(e) => setAddClassInput(e.target.value)}
-              placeholder="Thêm lớp mới (ví dụ: 3A1, 4A2)..."
-              className="flex-1 p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white"
+              placeholder="+ Thêm lớp (ví dụ: 3A1, 4A2)"
+              className="px-2.5 py-1 bg-slate-800 border border-slate-700 rounded-lg text-xs font-bold text-white placeholder-slate-500 w-44 focus:outline-none focus:border-blue-500"
             />
             <button
               type="submit"
-              className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shrink-0 flex items-center gap-1 transition-colors"
+              className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold shrink-0 flex items-center gap-1 transition-colors cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Thêm</span>
             </button>
           </form>
-        </div>
-
-        <div className="flex flex-wrap gap-2 items-center">
-          {assignedClasses.length === 0 ? (
-            <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-              Chưa có lớp học nào. Hãy nhập tên lớp để bắt đầu phân công TKB.
-            </p>
-          ) : (
-            assignedClasses.map((cls) => (
-              <div
-                key={cls}
-                className="px-2.5 py-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200"
-              >
-                <span>{cls}</span>
-                <span className="text-[10px] text-slate-400 font-normal">({inferGradeFromClassName(cls)})</span>
-                <button
-                  type="button"
-                  onClick={() => handleRemoveClass(cls)}
-                  className="text-slate-400 hover:text-red-500 transition-colors ml-1"
-                  title={`Xóa lớp ${cls}`}
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ))
-          )}
         </div>
       </div>
 
