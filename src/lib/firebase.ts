@@ -610,15 +610,16 @@ export type FetchSchedulesResult = {
 };
 
 export const saveSchedulesToFirestore = async (uid: string, schedules: ScheduleItem[]) => {
-  console.log('FIRESTORE SAVE START', { collection: 'weeklySchedules', uid, count: schedules.length });
+  console.log(`[SCHEDULE-SAVE] uid=${uid} count=${schedules.length}`);
   if (!uid) {
     console.error('FIRESTORE ERROR', { collection: 'weeklySchedules', uid, action: 'write', error: 'User UID is empty' });
     return;
   }
   try {
+    const cleanItems = JSON.parse(JSON.stringify(schedules));
     const ref = doc(db, 'weeklySchedules', uid);
-    await setDoc(ref, { items: schedules, updatedAt: new Date().toISOString() }, { merge: true });
-    console.log('FIRESTORE SAVE SUCCESS', { collection: 'weeklySchedules', uid });
+    await setDoc(ref, { items: cleanItems, updatedAt: new Date().toISOString() }, { merge: true });
+    console.log('FIRESTORE SAVE SUCCESS', { collection: 'weeklySchedules', uid, count: schedules.length });
   } catch (err) {
     console.error('FIRESTORE ERROR', { collection: 'weeklySchedules', uid, action: 'write', error: err });
   }
@@ -635,15 +636,15 @@ export const fetchSchedulesFromFirestore = async (uid: string): Promise<FetchSch
     const snap = await getDoc(ref);
     const exists = snap.exists();
     const data = exists ? snap.data() : null;
+    const items = data?.items && Array.isArray(data.items) ? data.items : [];
     console.log('[FIRESTORE-SCHEDULE-READ]', {
       uid,
       exists,
-      count: data?.items?.length || 0,
-      data
+      count: items.length,
     });
     console.log('FIRESTORE LOAD SUCCESS', { collection: 'weeklySchedules', uid, dataFound: exists });
     if (exists) {
-      return { status: 'success', exists: true, items: data?.items || [] };
+      return { status: 'success', exists: true, items };
     } else {
       return { status: 'success', exists: false, items: [] };
     }
