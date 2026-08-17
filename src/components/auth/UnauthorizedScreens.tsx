@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AppUser } from '../../types';
+import { DEFAULT_SYSTEM_SETTINGS } from '../../config/adminConfig';
 import { 
   Clock, 
   XCircle, 
@@ -28,9 +29,9 @@ export const PendingApprovalScreen: React.FC<ScreenProps> = ({
   appUser,
   onLogout,
   onRefreshStatus,
-  supportEmail = 'admin@truongtieuhoc.edu.vn',
-  supportPhone = '0901234567',
-  schoolName = 'Trường Tiểu học'
+  supportEmail = DEFAULT_SYSTEM_SETTINGS.supportEmail,
+  supportPhone = DEFAULT_SYSTEM_SETTINGS.supportPhone,
+  schoolName = DEFAULT_SYSTEM_SETTINGS.schoolName
 }) => {
   const [copied, setCopied] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -185,9 +186,9 @@ export const PendingApprovalScreen: React.FC<ScreenProps> = ({
 export const RejectedScreen: React.FC<ScreenProps> = ({
   appUser,
   onLogout,
-  supportEmail = 'admin@truongtieuhoc.edu.vn',
-  supportPhone = '0901234567',
-  schoolName = 'Trường Tiểu học'
+  supportEmail = DEFAULT_SYSTEM_SETTINGS.supportEmail,
+  supportPhone = DEFAULT_SYSTEM_SETTINGS.supportPhone,
+  schoolName = DEFAULT_SYSTEM_SETTINGS.schoolName
 }) => {
   return (
     <div className="min-h-screen bg-[#070B14] text-slate-100 flex flex-col justify-between p-4 sm:p-6 font-sans">
@@ -256,9 +257,9 @@ export const RejectedScreen: React.FC<ScreenProps> = ({
 export const SuspendedScreen: React.FC<ScreenProps> = ({
   appUser,
   onLogout,
-  supportEmail = 'admin@truongtieuhoc.edu.vn',
-  supportPhone = '0901234567',
-  schoolName = 'Trường Tiểu học'
+  supportEmail = DEFAULT_SYSTEM_SETTINGS.supportEmail,
+  supportPhone = DEFAULT_SYSTEM_SETTINGS.supportPhone,
+  schoolName = DEFAULT_SYSTEM_SETTINGS.schoolName
 }) => {
   return (
     <div className="min-h-screen bg-[#070B14] text-slate-100 flex flex-col justify-between p-4 sm:p-6 font-sans">

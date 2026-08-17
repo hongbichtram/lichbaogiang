@@ -229,7 +229,7 @@ export default function App() {
 
           // Fetch existing user data from Firestore
           const year = teacher.academicYear || '2026-2027';
-          const [fsTeacherData, fsVersions, fsPPCTs, fsSchedulesResult, fsCustomDates, fsPrintSettings, fsConfig] = await Promise.all([
+          const [fsTeacherData, fsVersions, fsPPCTs, fsSchedulesResult, fsCustomDates, fsPrintSettings, fsConfig, fsSysConfig] = await Promise.all([
             fetchTeacherProfileFromFirestore(user.uid),
             fetchTimetableVersionsFromFirestore(user.uid),
             fetchPPCTsFromFirestore(user.uid),
@@ -237,9 +237,14 @@ export default function App() {
             fetchCustomWeekDatesFromFirestore(user.uid),
             fetchPrintSettingsFromFirestore(user.uid),
             fetchAcademicYearConfigFromFirestore(user.uid, year),
+            fetchSystemConfig(),
           ]);
 
           if (isCancelled) return;
+
+          if (fsSysConfig) {
+            setSystemConfig(fsSysConfig);
+          }
 
           let activeTeacher: TeacherProfile = teacher;
           let activeRules: ClassTimetableRule[] = timetableRules;
@@ -1048,13 +1053,18 @@ export default function App() {
 
   if (!isAdmin && !isApproved) {
     const userStatus = appUser?.status || 'pending';
+    const dynamicSchoolName = systemConfig?.schoolName || teacher.schoolName;
+    const dynamicSupportEmail = systemConfig?.supportEmail || systemConfig?.contactEmail;
+    const dynamicSupportPhone = systemConfig?.supportPhone || systemConfig?.contactPhone;
 
     if (userStatus === 'rejected') {
       return (
         <RejectedScreen 
           appUser={appUser || { uid: authUser.uid, email: authUser.email, role: 'teacher', status: 'rejected' }} 
           onLogout={logoutUser} 
-          schoolName={teacher.schoolName}
+          schoolName={dynamicSchoolName}
+          supportEmail={dynamicSupportEmail}
+          supportPhone={dynamicSupportPhone}
         />
       );
     }
@@ -1064,7 +1074,9 @@ export default function App() {
         <SuspendedScreen 
           appUser={appUser || { uid: authUser.uid, email: authUser.email, role: 'teacher', status: 'suspended' }} 
           onLogout={logoutUser} 
-          schoolName={teacher.schoolName}
+          schoolName={dynamicSchoolName}
+          supportEmail={dynamicSupportEmail}
+          supportPhone={dynamicSupportPhone}
         />
       );
     }
@@ -1075,7 +1087,9 @@ export default function App() {
         appUser={appUser || { uid: authUser.uid, email: authUser.email, displayName: authUser.displayName, role: 'teacher', status: 'pending' }}
         onLogout={logoutUser}
         onRefreshStatus={handleRefreshStatus}
-        schoolName={teacher.schoolName}
+        schoolName={dynamicSchoolName}
+        supportEmail={dynamicSupportEmail}
+        supportPhone={dynamicSupportPhone}
       />
     );
   }

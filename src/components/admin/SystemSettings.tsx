@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { SystemConfig } from '../../types';
 import { fetchSystemConfig, saveSystemConfig } from '../../services/adminService';
+import { DEFAULT_SYSTEM_SETTINGS } from '../../config/adminConfig';
 import { 
   Settings, 
   Building2, 
@@ -23,12 +24,12 @@ interface SystemSettingsProps {
 
 export const SystemSettings: React.FC<SystemSettingsProps> = ({ currentUser }) => {
   const [initialConfig, setInitialConfig] = useState<SystemConfig>({
-    appName: 'Lịch báo giảng Tiểu học',
-    schoolName: 'Trường Tiểu học',
-    defaultAcademicYear: '2026-2027',
-    supportEmail: 'hongbichtram13@gmail.com',
-    supportPhone: '0973474027',
-    systemAnnouncement: 'Hệ thống Quản lý Lịch báo giảng Tiểu học.',
+    appName: DEFAULT_SYSTEM_SETTINGS.appName,
+    schoolName: DEFAULT_SYSTEM_SETTINGS.schoolName,
+    defaultAcademicYear: DEFAULT_SYSTEM_SETTINGS.defaultAcademicYear,
+    supportEmail: DEFAULT_SYSTEM_SETTINGS.supportEmail,
+    supportPhone: DEFAULT_SYSTEM_SETTINGS.supportPhone,
+    systemAnnouncement: DEFAULT_SYSTEM_SETTINGS.systemAnnouncement,
   });
 
   const [config, setConfig] = useState<SystemConfig>(initialConfig);

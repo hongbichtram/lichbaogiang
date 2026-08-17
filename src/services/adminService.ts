@@ -26,17 +26,13 @@ import {
   SystemLog, 
   TeacherUsageStats 
 } from '../types';
+import { DEFAULT_SYSTEM_SETTINGS } from '../config/adminConfig';
 
 const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
-  appName: 'Lịch báo giảng Tiểu học',
-  schoolName: 'Trường Tiểu học',
-  defaultAcademicYear: '2026-2027',
-  supportEmail: 'admin@truongtieuhoc.edu.vn',
-  supportPhone: '0901234567',
-  contactEmail: 'admin@truongtieuhoc.edu.vn',
-  contactPhone: '0901234567',
-  systemAnnouncement: 'Hệ thống Quản lý Lịch báo giảng Tiểu học vận hành chính thức.',
-  announcement: 'Hệ thống Quản lý Lịch báo giảng Tiểu học vận hành chính thức.',
+  ...DEFAULT_SYSTEM_SETTINGS,
+  contactEmail: DEFAULT_SYSTEM_SETTINGS.supportEmail,
+  contactPhone: DEFAULT_SYSTEM_SETTINGS.supportPhone,
+  announcement: DEFAULT_SYSTEM_SETTINGS.systemAnnouncement,
   updatedAt: new Date().toISOString()
 };
 

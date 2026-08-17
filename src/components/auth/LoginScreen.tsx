@@ -14,6 +14,7 @@ import {
 import { loginWithEmailAndPassword, signInWithGoogle } from '../../lib/firebase';
 import { fetchSystemConfig } from '../../services/adminService';
 import { SystemConfig } from '../../types';
+import { DEFAULT_SYSTEM_SETTINGS } from '../../config/adminConfig';
 import { Footer } from '../Footer';
 
 interface LoginScreenProps {
@@ -42,16 +43,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ darkMode = true }) => 
     return () => { isMounted = false; };
   }, []);
 
-  // Determine support email and phone with fallbacks as required
+  // Determine support email and phone from SystemConfig (Firestore) with central default fallback
   const rawEmail = sysConfig?.supportEmail?.trim() || sysConfig?.contactEmail?.trim() || '';
-  const supportEmail = (!rawEmail || rawEmail.includes('truongtieuhoc.edu.vn') || rawEmail === 'admin@truongtieuhoc.edu.vn')
-    ? 'hongbichtram13@gmail.com'
-    : rawEmail;
+  const supportEmail = rawEmail || DEFAULT_SYSTEM_SETTINGS.supportEmail;
 
   const rawPhone = sysConfig?.supportPhone?.trim() || sysConfig?.contactPhone?.trim() || '';
-  const supportPhone = (!rawPhone || rawPhone === '0901234567')
-    ? '0973474027'
-    : rawPhone;
+  const supportPhone = rawPhone || DEFAULT_SYSTEM_SETTINGS.supportPhone;
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();

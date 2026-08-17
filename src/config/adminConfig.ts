@@ -15,6 +15,18 @@
 export const ADMIN_UID = "dUppwv43zEgXLqetfoClHDWUpFD2";
 
 /**
+ * Cấu hình mặc định hệ thống khi chưa có dữ liệu trong Firestore
+ */
+export const DEFAULT_SYSTEM_SETTINGS = {
+  appName: 'Lịch báo giảng Tiểu học',
+  schoolName: 'Trường Tiểu học',
+  defaultAcademicYear: '2026-2027',
+  supportEmail: 'hongbichtram13@gmail.com',
+  supportPhone: '0973474027',
+  systemAnnouncement: 'Hệ thống Quản lý Lịch báo giảng Tiểu học vận hành chính thức.'
+};
+
+/**
  * Kiểm tra xem UID có phải là Admin được cấu hình hay không.
  */
 export function isConfiguredAdminUid(uid?: string | null): boolean {
