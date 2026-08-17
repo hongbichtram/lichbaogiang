@@ -16,6 +16,15 @@ service cloud.firestore {
       );
     }
 
+    function isApprovedUser() {
+      return isAuthenticated() && (
+        isAppAdmin() ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved' ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'active'))
+      );
+    }
+
     // 1. User Accounts collection (users/{userId})
     match /users/{userId} {
       allow read: if isAuthenticated() && (request.auth.uid == userId || isAppAdmin());
@@ -23,7 +32,9 @@ service cloud.firestore {
         isAppAdmin() || 
         (request.auth.uid == userId && 
          request.resource.data.role == 'teacher' && 
-         request.resource.data.status == 'active')
+         (request.resource.data.status == 'pending' || 
+          request.resource.data.status == 'approved' || 
+          request.resource.data.status == 'active'))
       );
       allow update: if isAuthenticated() && (
         isAppAdmin() || 
@@ -36,51 +47,78 @@ service cloud.firestore {
 
     // 2. Teacher Profiles collection (teachers/{userId})
     match /teachers/{userId} {
-      allow read, write: if isAuthenticated() && (request.auth.uid == userId || isAppAdmin());
+      allow read, write: if isAuthenticated() && (
+        isAppAdmin() || 
+        (request.auth.uid == userId && isApprovedUser())
+      );
       
       match /timetableVersions/{versionId} {
-        allow read, write: if isAuthenticated() && (request.auth.uid == userId || isAppAdmin());
+        allow read, write: if isAuthenticated() && (
+          isAppAdmin() || 
+          (request.auth.uid == userId && isApprovedUser())
+        );
       }
 
       match /academicYearConfigs/{configId} {
-        allow read, write: if isAuthenticated() && (request.auth.uid == userId || isAppAdmin());
+        allow read, write: if isAuthenticated() && (
+          isAppAdmin() || 
+          (request.auth.uid == userId && isApprovedUser())
+        );
       }
     }
 
     // 3. PPCT Curriculums (curriculums/{userId}) - Legacy/Current
     match /curriculums/{userId} {
-      allow read, write: if isAuthenticated() && (request.auth.uid == userId || isAppAdmin());
+      allow read, write: if isAuthenticated() && (
+        isAppAdmin() || 
+        (request.auth.uid == userId && isApprovedUser())
+      );
     }
 
     // 3b. Shared Curriculum Library (curriculumLibrary/{curriculumId})
     match /curriculumLibrary/{curriculumId} {
-      allow read: if isAuthenticated();
+      allow read: if isApprovedUser();
       allow write: if isAppAdmin();
     }
 
     // 3c. Teacher-Specific Curriculum Data (teacherCurriculumData/{userId})
     match /teacherCurriculumData/{userId} {
-      allow read, write: if isAuthenticated() && (request.auth.uid == userId || isAppAdmin());
+      allow read, write: if isAuthenticated() && (
+        isAppAdmin() || 
+        (request.auth.uid == userId && isApprovedUser())
+      );
     }
 
     // 4. Weekly Schedules (weeklySchedules/{userId})
     match /weeklySchedules/{userId} {
-      allow read, write: if isAuthenticated() && (request.auth.uid == userId || isAppAdmin());
+      allow read, write: if isAuthenticated() && (
+        isAppAdmin() || 
+        (request.auth.uid == userId && isApprovedUser())
+      );
     }
 
     // 5. Custom Week Dates (customWeekDates/{userId})
     match /customWeekDates/{userId} {
-      allow read, write: if isAuthenticated() && (request.auth.uid == userId || isAppAdmin());
+      allow read, write: if isAuthenticated() && (
+        isAppAdmin() || 
+        (request.auth.uid == userId && isApprovedUser())
+      );
     }
 
     // 6. Print Settings (printSettings/{userId})
     match /printSettings/{userId} {
-      allow read, write: if isAuthenticated() && (request.auth.uid == userId || isAppAdmin());
+      allow read, write: if isAuthenticated() && (
+        isAppAdmin() || 
+        (request.auth.uid == userId && isApprovedUser())
+      );
     }
 
     // 7. Debug logs / Connection test (debug/{userId})
     match /debug/{userId} {
-      allow read, write: if isAuthenticated() && (request.auth.uid == userId || isAppAdmin());
+      allow read, write: if isAuthenticated() && (
+        isAppAdmin() || 
+        (request.auth.uid == userId && isApprovedUser())
+      );
     }
 
     // 8. System Configuration (systemConfig/{configId})

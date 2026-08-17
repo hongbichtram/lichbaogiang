@@ -8,7 +8,7 @@
         "displayName": { "type": "string", "description": "Display name" },
         "email": { "type": "string", "description": "User email address" },
         "role": { "type": "string", "enum": ["admin", "teacher"], "description": "User role: admin or teacher" },
-        "status": { "type": "string", "enum": ["active", "disabled"], "description": "Account status: active or disabled" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected", "suspended", "active", "disabled"], "description": "Account authorization status" },
         "createdAt": { "type": "string" },
         "updatedAt": { "type": "string" }
       },

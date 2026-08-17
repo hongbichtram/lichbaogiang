@@ -16,6 +16,7 @@ import { isConfiguredAdminUid } from './config/adminConfig';
 import { fetchSystemConfig } from './services/adminService';
 import { SystemAnnouncementBanner } from './components/SystemAnnouncementBanner';
 import { LoginScreen } from './components/auth/LoginScreen';
+import { PendingApprovalScreen, RejectedScreen, SuspendedScreen } from './components/auth/UnauthorizedScreens';
 import { Ban, ShieldAlert, LogOut as LogOutIcon, Loader2, Calendar } from 'lucide-react';
 import { PREDEFINED_PPCTS } from './data/primaryCurriculums';
 import { 
@@ -37,8 +38,10 @@ import {
   saveAcademicYearConfigToFirestore,
   fetchAcademicYearConfigFromFirestore,
   deleteTimetableVersionFromFirestore,
-  syncUserRoleOnLogin
+  syncUserRoleOnLogin,
+  fetchAppUserProfile
 } from './lib/firebase';
+import { isUserApproved } from './types';
 import { onAuthStateChanged } from 'firebase/auth';
 
 import { loadCustomWeekDatesMap, saveCustomWeekDatesMap, normalizeAcademicYear } from './utils/dateWeekUtils';
@@ -1005,6 +1008,22 @@ export default function App() {
     }
   };
 
+  const handleRefreshStatus = async () => {
+    if (!authUser?.uid) return;
+    try {
+      const refreshedUser = await fetchAppUserProfile(authUser.uid);
+      if (refreshedUser) {
+        setAppUser(refreshedUser);
+        if (isUserApproved(refreshedUser)) {
+          // Trigger data reload for newly approved user
+          setDataReady(true);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to refresh user status:', err);
+    }
+  };
+
   if (authLoading || (authUser && !dataReady)) {
     return (
       <div className="min-h-screen bg-[#090D16] flex flex-col items-center justify-center space-y-4 text-slate-100 font-sans">
@@ -1023,36 +1042,47 @@ export default function App() {
     return <LoginScreen darkMode={darkMode} />;
   }
 
+  // Strict Authorization Gate: Check if user is Admin or explicitly Approved
+  const isAdmin = appUser?.role === 'admin' || isConfiguredAdminUid(authUser?.uid);
+  const isApproved = isUserApproved(appUser);
+
+  if (!isAdmin && !isApproved) {
+    const userStatus = appUser?.status || 'pending';
+
+    if (userStatus === 'rejected') {
+      return (
+        <RejectedScreen 
+          appUser={appUser || { uid: authUser.uid, email: authUser.email, role: 'teacher', status: 'rejected' }} 
+          onLogout={logoutUser} 
+          schoolName={teacher.schoolName}
+        />
+      );
+    }
+
+    if (userStatus === 'suspended' || userStatus === 'disabled') {
+      return (
+        <SuspendedScreen 
+          appUser={appUser || { uid: authUser.uid, email: authUser.email, role: 'teacher', status: 'suspended' }} 
+          onLogout={logoutUser} 
+          schoolName={teacher.schoolName}
+        />
+      );
+    }
+
+    // Default: Pending Approval Screen
+    return (
+      <PendingApprovalScreen
+        appUser={appUser || { uid: authUser.uid, email: authUser.email, displayName: authUser.displayName, role: 'teacher', status: 'pending' }}
+        onLogout={logoutUser}
+        onRefreshStatus={handleRefreshStatus}
+        schoolName={teacher.schoolName}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0B1120] text-slate-800 dark:text-slate-100 font-sans transition-colors duration-200 flex flex-col">
-      {/* Locked Account Notice overlay */}
-      {appUser && appUser.status === 'disabled' ? (
-        <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-          <div className="max-w-md w-full bg-slate-900 border border-rose-500/40 p-6 rounded-2xl shadow-2xl text-white space-y-5 text-center">
-            <div className="w-16 h-16 bg-rose-500/20 text-rose-400 rounded-full flex items-center justify-center mx-auto border border-rose-500/40 shadow-lg shadow-rose-500/20">
-              <Ban className="w-8 h-8" />
-            </div>
-            <div className="space-y-2">
-              <h2 className="text-lg font-black text-rose-300 uppercase tracking-wide">
-                TÀI KHOẢN CỦA BẠN ĐÃ BỊ KHÓA
-              </h2>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Tài khoản <span className="font-bold text-white">{appUser.email}</span> hiện đang bị tạm khóa bởi Quản trị viên hệ thống.
-              </p>
-              <p className="text-[11px] text-slate-400">
-                Vui lòng liên hệ Ban Giám hiệu hoặc Quản trị viên để được hỗ trợ mở khóa.
-              </p>
-            </div>
-            <button 
-              onClick={logoutUser} 
-              className="w-full flex items-center justify-center space-x-2 px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl transition-all shadow-md cursor-pointer"
-            >
-              <LogOutIcon className="w-4 h-4" />
-              <span>Đăng xuất khỏi hệ thống</span>
-            </button>
-          </div>
-        </div>
-      ) : currentTab === 'admin' ? (
+      {currentTab === 'admin' ? (
         (() => {
           const isAdminUser = appUser?.role === 'admin' || isConfiguredAdminUid(authUser?.uid);
           if (!isAdminUser) {

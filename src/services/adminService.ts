@@ -291,6 +291,107 @@ export async function getTeacherUsageStats(teacherUid: string): Promise<TeacherU
 }
 
 /**
+ * Phê duyệt tài khoản người dùng (Admin Approval)
+ */
+export async function approveUser(
+  targetUser: AppUser,
+  performer: { uid: string; displayName?: string; email?: string }
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    const userRef = doc(db, 'users', targetUser.uid);
+    await updateDoc(userRef, {
+      status: 'approved',
+      updatedAt: serverTimestamp()
+    });
+
+    // Khởi tạo profile giáo viên cơ bản trong teachers/{uid} nếu chưa có
+    try {
+      const teacherRef = doc(db, 'teachers', targetUser.uid);
+      const teacherSnap = await getDoc(teacherRef);
+      if (!teacherSnap.exists()) {
+        await setDoc(teacherRef, {
+          uid: targetUser.uid,
+          fullName: targetUser.displayName || 'Giáo viên',
+          email: targetUser.email || '',
+          teacherCode: targetUser.teacherCode || '',
+          schoolName: 'Trường Tiểu học',
+          subjects: [],
+          grades: [],
+          assignedClasses: [],
+          academicYear: '2026-2027',
+          semester: 'Học kỳ I'
+        }, { merge: true });
+      }
+    } catch (e) {
+      console.warn('Could not ensure teacher profile existence:', e);
+    }
+
+    // Ghi nhật ký hệ thống
+    await logSystemActivity({
+      uid: performer.uid,
+      adminUid: performer.uid,
+      performerName: performer.displayName || performer.email || 'Admin',
+      performerEmail: performer.email || '',
+      action: 'APPROVE_USER',
+      actionLabel: 'Phê duyệt tài khoản',
+      targetUid: targetUser.uid,
+      targetUserId: targetUser.uid,
+      targetUserName: targetUser.displayName,
+      targetUserEmail: targetUser.email,
+      details: `Đã phê duyệt tài khoản người dùng: ${targetUser.displayName} (${targetUser.email})`,
+      timestamp: new Date().toISOString()
+    });
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error approving user:', err);
+    return { success: false, message: err.message || 'Không thể phê duyệt tài khoản.' };
+  }
+}
+
+/**
+ * Từ chối tài khoản người dùng
+ */
+export async function rejectUser(
+  targetUser: AppUser,
+  performer: { uid: string; displayName?: string; email?: string }
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    // Không cho phép từ chối Admin
+    if (targetUser.role === 'admin') {
+      return { success: false, message: 'Không thể từ chối tài khoản Quản trị viên!' };
+    }
+
+    const userRef = doc(db, 'users', targetUser.uid);
+    await updateDoc(userRef, {
+      status: 'rejected',
+      updatedAt: serverTimestamp()
+    });
+
+    // Ghi nhật ký hệ thống
+    await logSystemActivity({
+      uid: performer.uid,
+      adminUid: performer.uid,
+      performerName: performer.displayName || performer.email || 'Admin',
+      performerEmail: performer.email || '',
+      action: 'REJECT_USER',
+      actionLabel: 'Từ chối tài khoản',
+      targetUid: targetUser.uid,
+      targetUserId: targetUser.uid,
+      targetUserName: targetUser.displayName,
+      targetUserEmail: targetUser.email,
+      details: `Đã từ chối cấp quyền tài khoản: ${targetUser.displayName} (${targetUser.email})`,
+      timestamp: new Date().toISOString()
+    });
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error rejecting user:', err);
+    return { success: false, message: err.message || 'Không thể từ chối tài khoản.' };
+  }
+}
+
+/**
  * Khóa hoặc Mở khóa tài khoản giáo viên (Bảo vệ Admin cuối cùng)
  */
 export async function toggleUserStatus(
@@ -300,15 +401,15 @@ export async function toggleUserStatus(
 ): Promise<{ success: boolean; message?: string }> {
   try {
     // Bảo vệ không cho Admin tự khóa chính tài khoản của mình
-    if (performer.uid === targetUser.uid && newStatus === 'disabled') {
+    if (performer.uid === targetUser.uid && (newStatus === 'disabled' || newStatus === 'suspended' || newStatus === 'rejected')) {
       return {
         success: false,
-        message: 'Bạn không thể tự khóa tài khoản Admin đang đăng nhập của chính mình!'
+        message: 'Bạn không thể tự khóa/từ chối tài khoản Admin đang đăng nhập của chính mình!'
       };
     }
 
     // Kiểm tra bảo vệ Admin cuối cùng
-    if (targetUser.role === 'admin' && newStatus === 'disabled') {
+    if (targetUser.role === 'admin' && (newStatus === 'disabled' || newStatus === 'suspended' || newStatus === 'rejected')) {
       const activeAdminCount = await getActiveAdminCount();
       if (activeAdminCount <= 1) {
         return { 
@@ -325,8 +426,9 @@ export async function toggleUserStatus(
     });
 
     // Ghi nhật ký hệ thống
-    const action = newStatus === 'disabled' ? 'DISABLE_TEACHER' : 'ENABLE_TEACHER';
-    const actionLabel = newStatus === 'disabled' ? 'Khóa tài khoản' : 'Mở khóa tài khoản';
+    const isLocking = newStatus === 'disabled' || newStatus === 'suspended';
+    const action = isLocking ? 'DISABLE_TEACHER' : 'ENABLE_TEACHER';
+    const actionLabel = isLocking ? 'Khóa tài khoản' : 'Mở khóa / Kích hoạt tài khoản';
     await logSystemActivity({
       uid: performer.uid,
       adminUid: performer.uid,
@@ -338,7 +440,7 @@ export async function toggleUserStatus(
       targetUserId: targetUser.uid,
       targetUserName: targetUser.displayName,
       targetUserEmail: targetUser.email,
-      details: `${actionLabel}: ${targetUser.displayName} (${targetUser.email})`,
+      details: `${actionLabel}: ${targetUser.displayName} (${targetUser.email}) -> Trạng thái: ${newStatus}`,
       timestamp: new Date().toISOString()
     });
 

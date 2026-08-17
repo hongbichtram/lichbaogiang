@@ -164,8 +164,8 @@ export const fetchUserDocument = async (uid: string): Promise<AppUser | null> =>
  * Sync user document upon successful authentication.
  * Document path: users/{uid}
  * If exists: read role and status.
- * If not exists: default role = "teacher", status = "active".
- * If user.uid matches ADMIN_UID: ensure role = "admin".
+ * If not exists: default role = "teacher", status = "pending" (unless configured ADMIN_UID).
+ * If user.uid matches ADMIN_UID: ensure role = "admin", status = "approved".
  */
 export const syncUserRoleOnLogin = async (user: User): Promise<AppUser> => {
   const uid = user.uid;
@@ -180,12 +180,25 @@ export const syncUserRoleOnLogin = async (user: User): Promise<AppUser> => {
     if (snap.exists()) {
       const data = snap.data();
       let role: UserRole = (data.role as UserRole) || 'teacher';
-      let status: UserStatus = (data.status as UserStatus) || 'active';
+      let status: UserStatus = (data.status as UserStatus) || 'pending';
 
-      // If configured as ADMIN_UID, elevate/sync role to admin if not already
-      if (isAdminByConfig && role !== 'admin') {
-        role = 'admin';
-        await setDoc(userRef, { role: 'admin', updatedAt: serverTimestamp() }, { merge: true });
+      // If configured as ADMIN_UID, elevate/sync role to admin and approved if not already
+      if (isAdminByConfig) {
+        let needsUpdate = false;
+        const updatePayload: any = { updatedAt: serverTimestamp() };
+        if (role !== 'admin') {
+          role = 'admin';
+          updatePayload.role = 'admin';
+          needsUpdate = true;
+        }
+        if (status !== 'approved' && status !== 'active') {
+          status = 'approved';
+          updatePayload.status = 'approved';
+          needsUpdate = true;
+        }
+        if (needsUpdate) {
+          await setDoc(userRef, updatePayload, { merge: true });
+        }
       }
 
       // Update lastLoginAt on login
@@ -200,6 +213,7 @@ export const syncUserRoleOnLogin = async (user: User): Promise<AppUser> => {
         uid,
         displayName: data.displayName || user.displayName || '',
         email: data.email || user.email || '',
+        teacherCode: data.teacherCode || '',
         role,
         status,
         createdAt: data.createdAt,
@@ -209,9 +223,10 @@ export const syncUserRoleOnLogin = async (user: User): Promise<AppUser> => {
     } else {
       // Document does not exist: create default user document
       const defaultRole: UserRole = isAdminByConfig ? 'admin' : 'teacher';
-      const defaultStatus: UserStatus = 'active';
+      const defaultStatus: UserStatus = isAdminByConfig ? 'approved' : 'pending';
 
       const newUserDoc = {
+        uid,
         displayName: user.displayName || '',
         email: user.email || '',
         role: defaultRole,
@@ -232,38 +247,69 @@ export const syncUserRoleOnLogin = async (user: User): Promise<AppUser> => {
       };
     }
 
-    // Log system activity entry for login
-    try {
-      const logsRef = collection(db, 'systemLogs');
-      await setDoc(doc(logsRef), {
-        uid,
-        performerName: appUser.displayName || appUser.email || 'Người dùng',
-        performerEmail: appUser.email || '',
-        action: 'login',
-        actionLabel: 'Đăng nhập',
-        details: `Đăng nhập hệ thống thành công (Vai trò: ${appUser.role.toUpperCase()})`,
-        timestamp: new Date().toISOString(),
-        createdAt: serverTimestamp()
-      });
-    } catch (e) {
-      // Silently ignore log creation if permissions fail on initial state
+    // Log system activity entry for login (only if approved or admin to adhere to security rules)
+    if (appUser.role === 'admin' || appUser.status === 'approved' || appUser.status === 'active') {
+      try {
+        const logsRef = collection(db, 'systemLogs');
+        await setDoc(doc(logsRef), {
+          uid,
+          performerName: appUser.displayName || appUser.email || 'Người dùng',
+          performerEmail: appUser.email || '',
+          action: 'login',
+          actionLabel: 'Đăng nhập',
+          details: `Đăng nhập hệ thống thành công (Vai trò: ${appUser.role.toUpperCase()}, Trạng thái: ${appUser.status})`,
+          timestamp: new Date().toISOString(),
+          createdAt: serverTimestamp()
+        });
+      } catch (e) {
+        // Silently ignore log creation if permissions fail on initial state
+      }
     }
   } catch (err) {
     console.error('Error syncing user document on login:', err);
-    // Fallback in-memory state if Firestore write fails
+    // Fallback in-memory state if Firestore read/write fails
     appUser = {
       uid,
       displayName: user.displayName || '',
       email: user.email || '',
       role: isAdminByConfig ? 'admin' : 'teacher',
-      status: 'active',
+      status: isAdminByConfig ? 'approved' : 'pending',
     };
   }
 
-  // Print required debug log (Requirement 7)
+  // Print required debug log
   console.log(`AUTH USER\nUID: ${appUser.uid}\nEMAIL: ${appUser.email}\nROLE: ${appUser.role}\nSTATUS: ${appUser.status}`);
 
   return appUser;
+};
+
+/**
+ * Re-fetch user authorization profile directly from users/{uid}
+ */
+export const fetchAppUserProfile = async (uid: string): Promise<AppUser | null> => {
+  if (!uid) return null;
+  try {
+    const userRef = doc(db, 'users', uid);
+    const snap = await getDoc(userRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      const isAdminByConfig = isConfiguredAdminUid(uid);
+      return {
+        uid,
+        displayName: data.displayName || '',
+        email: data.email || '',
+        teacherCode: data.teacherCode || '',
+        role: isAdminByConfig ? 'admin' : ((data.role as UserRole) || 'teacher'),
+        status: (data.status as UserStatus) || 'pending',
+        createdAt: data.createdAt,
+        updatedAt: data.updatedAt,
+        lastLoginAt: data.lastLoginAt,
+      };
+    }
+  } catch (err) {
+    console.error('Error fetching app user profile:', err);
+  }
+  return null;
 };
 
 // --- FIRESTORE DATA SYNC HELPERS ---

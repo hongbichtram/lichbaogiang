@@ -1,7 +1,7 @@
 export type LessonStatus = 'completed' | 'preparing' | 'unprepared';
 
 export type UserRole = 'admin' | 'teacher';
-export type UserStatus = 'active' | 'disabled';
+export type UserStatus = 'pending' | 'approved' | 'rejected' | 'suspended' | 'active' | 'disabled';
 
 export interface AppUser {
   uid: string;
@@ -13,6 +13,12 @@ export interface AppUser {
   createdAt?: string | any;
   updatedAt?: string | any;
   lastLoginAt?: string | any;
+}
+
+export function isUserApproved(user: AppUser | null | undefined): boolean {
+  if (!user) return false;
+  if (user.role === 'admin') return true;
+  return user.status === 'approved' || user.status === 'active';
 }
 
 export interface SystemConfig {
@@ -35,7 +41,7 @@ export interface SystemLog {
   uid: string;
   performerName?: string;
   performerEmail?: string;
-  action: 'login' | 'logout' | 'lock_user' | 'unlock_user' | 'change_role' | 'update_system_config' | 'UPDATE_SYSTEM_CONFIG' | 'CREATE_TEACHER' | 'UPDATE_TEACHER' | 'DISABLE_TEACHER' | 'ENABLE_TEACHER' | 'CHANGE_ROLE';
+  action: 'login' | 'logout' | 'lock_user' | 'unlock_user' | 'change_role' | 'update_system_config' | 'UPDATE_SYSTEM_CONFIG' | 'CREATE_TEACHER' | 'UPDATE_TEACHER' | 'DISABLE_TEACHER' | 'ENABLE_TEACHER' | 'CHANGE_ROLE' | 'APPROVE_USER' | 'REJECT_USER' | 'SUSPEND_USER';
   actionLabel?: string;
   adminUid?: string;
   targetUid?: string;
